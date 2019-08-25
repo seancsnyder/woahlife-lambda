@@ -1,0 +1,85 @@
+service: woahlife
+app: woahlife
+org: seancsnyder
+plugins:
+  - serverless-pseudo-parameters
+provider:
+  name: aws
+  runtime: python3.7
+  stage: prod
+  region: us-west-2
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - logs:CreateLogGroup
+        - logs:CreateLogStream
+        - logs:PutLogEvents
+      Resource: "*"
+    - Effect: Allow
+      Action:
+        - dynamodb:PutItem
+        - dynamodb:GetItem
+        - dynamodb:UpdateItem
+        - dynamodb:Query
+      Resource: arn:aws:dynamodb:us-west-2:484871890786:table/woahlife_entries
+    - Effect: Allow
+      Action: 
+        - secretsmanager:*
+      Resource: '*'
+  environment: 
+    TO_EMAIL_ADDRESS: sean@snyderitis.com
+    MAILGUN_API_SSM_REGION: !Ref AWS::Region
+    MAILGUN_API_SSM_KEY: prod/woahlife/mailgunApiKey
+
+functions:
+  RequestEntry:
+    handler: handler.requestEntry
+    name: ${self:app}-${self:provider.stage}-request-new-journal-entry
+    description: Send a request for a journal entry
+    memorySize: 128
+    timeout: 15
+    events:
+      - http:
+          path: request
+          method: get
+  ReceiveEntry:
+    handler: handler.receiveEntry
+    name: ${self:app}-${self:provider.stage}-receive-incoming-journal-entry
+    description: Receive and process the incoming journal entry
+    memorySize: 128
+    timeout: 15
+    events:
+      - http:
+          path: receive
+          method: post
+  BrowseEntries:
+    handler: handler.browseEntries
+    name: ${self:app}-${self:provider.stage}-browse-existing-journal-entries
+    description: Browse the existing entries by year
+    memorySize: 256
+    timeout: 60
+    events:
+      - http:
+          path: browse
+          method: post
+
+resources:
+  Resources:
+    RequestingJournalCron:
+      Type: AWS::Events::Rule
+      Properties: 
+        Description: Trigger the lambda to send the email requesting a journal entry
+        Name: ${self:provider.stage}-woahlife-request-journal-entryEventsRuleSchedule1
+        ScheduleExpression: cron(0 2,14 * * ? *)
+        State: ENABLED
+        Targets: 
+          - Arn: !GetAtt RequestEntryLambdaFunction.Arn
+            Id: TargetFunction1
+    PermissionForEventsToInvokeLambda: 
+      Type: AWS::Lambda::Permission
+      Properties: 
+        FunctionName: 
+          Ref: RequestEntryLambdaFunction
+        Action: lambda:InvokeFunction
+        Principal: events.amazonaws.com
+        SourceArn: !GetAtt RequestingJournalCron.Arn
