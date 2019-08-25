@@ -152,8 +152,7 @@ def receiveEntry(event, context):
         print("Writing new dynamodb item entry")
     return {
         'statusCode': 200,
-        'body': "OK",
-        'messageId': context.aws_request_id
+        'body': "OK"
     }
 
 
