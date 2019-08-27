@@ -16,7 +16,7 @@ custom:
       functionInvocations:
         namespace: 'AWS/Lambda'
         metric: Invocations
-        threshold: 3
+        threshold: 5
         statistic: Sum
         period: 86400
         evaluationPeriods: 1
