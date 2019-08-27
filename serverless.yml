@@ -40,7 +40,7 @@ custom:
 provider:
   name: aws
   runtime: python3.7
-  stage: prod
+  stage: ${opt:stage, 'prod'}
   region: us-west-2
   iamRoleStatements:
     - Effect: Allow
@@ -48,18 +48,24 @@ provider:
         - logs:CreateLogGroup
         - logs:CreateLogStream
         - logs:PutLogEvents
-      Resource: "*"
+      Resource: 
+        - !Sub "arn:aws:logs:#{AWS::Region}:#{AWS::AccountId}:log-group:/aws/lambda/${self:app}-${self:provider.stage}-*"
+        - !Sub "arn:aws:logs:#{AWS::Region}:#{AWS::AccountId}:log-group:/aws/api-gateway/woahlife-prod*"
+        - !Sub "arn:aws:logs:#{AWS::Region}:#{AWS::AccountId}:log-group:/aws/apigateway/welcome*"
+        - !Sub "arn:aws:logs:#{AWS::Region}:#{AWS::AccountId}:log-group:API-Gateway-Execution-Logs*"
     - Effect: Allow
       Action:
         - dynamodb:PutItem
         - dynamodb:GetItem
         - dynamodb:UpdateItem
         - dynamodb:Query
-      Resource: arn:aws:dynamodb:us-west-2:484871890786:table/woahlife_entries
+      Resource: 
+        - !Sub "arn:aws:dynamodb:#{AWS::Region}:#{AWS::AccountId}:table/woahlife_entries"
     - Effect: Allow
       Action: 
-        - secretsmanager:*
-      Resource: '*'
+        - secretsmanager:GetSecretValue
+      Resource: 
+        - !Sub "arn:aws:secretsmanager:#{AWS::Region}:#{AWS::AccountId}:secret:prod/woahlife/mailgunApiKey*"
   environment: 
     TO_EMAIL_ADDRESS: sean@snyderitis.com
     MAILGUN_API_SSM_REGION: !Ref AWS::Region
