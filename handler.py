@@ -179,21 +179,51 @@ def browseEntries(event, context):
     #Assume we'll use today's year, unless the subject line had the year
     pacific = dateutil.tz.gettz('US/Pacific')
     pacificDate = datetime.datetime.now(tz=pacific)
-    browseYear = int(pacificDate.strftime("%Y"))
+    currentYear = int(pacificDate.strftime("%Y"))
+    currentMonth = int(pacificDate.strftime("%m"))
+    currentDay = int(pacificDate.strftime("%d"))
 
-    #Parse the last 4 digits off the subject. It'll be the year
-    if len(requestSubject) >= 4:
+    #Default to current year of entries
+    dateCursor = datetime.datetime(currentYear, 1, 1)
+    endDate = datetime.datetime(currentYear, 12, 31)
+
+    #hardcode some subjects that can shortcut to time periods
+    if requestSubject.lower() == "week":
+        dateCursor = datetime.datetime(currentYear, currentMonth, currentDay)
+        
+        lastSevenDaysStep = datetime.timedelta(days=7)
+        dateCursor = dateCursor - lastSevenDaysStep
+        
+        endDate = datetime.datetime(currentYear, currentMonth, currentDay)
+    
+        print("Attempting to browse journal entries for the last 7 days")
+            
+        responseSubject = "Woahlife Entries - Last 7 Days"
+    elif requestSubject == "month":
+        dateCursor = datetime.datetime(currentYear, currentMonth, currentDay)
+        
+        lastThirtyDaysStep = datetime.timedelta(days=31)
+        dateCursor = dateCursor - lastThirtyDaysStep
+        
+        endDate = datetime.datetime(currentYear, currentMonth, currentDay)
+    
+        print("Attempting to browse journal entries for the last 31 days")
+            
+        responseSubject = "Woahlife Entries - Last 31 Days"
+    elif len(requestSubject) >= 4:
+        #Parse the last 4 digits off the subject. It'll be the year
         subjectDate = requestSubject[len(requestSubject)-4:len(requestSubject)]
 
         if subjectDate.isdigit():
             browseYear = int(subjectDate)
-            
-    print("Attempting to browse journal entries for year: " + str(browseYear))
-            
-    responseSubject = "Woahlife Entries " + str(browseYear)
 
-    dateCursor = datetime.datetime(browseYear, 1, 1)
-    endDate = datetime.datetime(browseYear, 12, 31)
+            dateCursor = datetime.datetime(currentYear, currentMonth, currentDay)
+    
+        print("Attempting to browse journal entries for year: " + str(browseYear))
+            
+        responseSubject = "Woahlife Entries " + str(browseYear)
+
+
     dateCursorStep = datetime.timedelta(days=1)
     
     responseBody = "Here are your entries:\n\n";
@@ -239,3 +269,37 @@ def browseEntries(event, context):
             'statusCode': 200,
             'body': "OK"
         }
+
+def cleanupEntries(event, context):
+    dynamodb = boto3.resource('dynamodb')
+    table = dynamodb.Table('woahlife_entries')
+    
+    pacific = dateutil.tz.gettz('US/Pacific')
+    pacificDate = datetime.datetime.now(tz=pacific)
+    currentYear = int(pacificDate.strftime("%Y"))
+    currentMonth = int(pacificDate.strftime("%m"))
+    currentDay = int(pacificDate.strftime("%d"))
+
+    #dateCursor = datetime.datetime(2005, 1, 1)
+    #endDate = datetime.datetime(currentYear, currentMonth, currentDay)
+
+    dateCursor = datetime.datetime(2019, 7, 28)
+    endDate = datetime.datetime(2019, 7, 31)
+
+    dateCursorStep = datetime.timedelta(days=1)
+        
+    while dateCursor <= endDate:
+        currentDate = dateCursor.strftime('%Y-%m-%d')
+        dateKey = int(dateCursor.strftime('%Y%m%d'))
+        
+        # Try to get an item by that dateKey
+        response = table.get_item(Key={'date': dateKey})
+        
+        if 'Item' in response.keys():
+            entries = str(response['Item']['entries'])
+
+            for entry in response['Item']['entries']:
+                print(entry.replace("=E2=80=99", "'"))
+
+        dateCursor += dateCursorStep
+

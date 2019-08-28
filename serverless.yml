@@ -102,6 +102,12 @@ functions:
       - http:
           path: browse
           method: post
+  CleanupEntries:
+    handler: handler.cleanupEntries
+    name: ${self:app}-${self:provider.stage}-cleanup-existing-journal-entries
+    description: Cleanup the existing entries
+    memorySize: 256
+    timeout: 60          
 
 resources:
   Resources:
