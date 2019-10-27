@@ -71,6 +71,8 @@ provider:
   tracing:
     apiGateway: true
     lambda: true 
+  tags:
+    app: woahlife
 
 functions:
   RequestEntry:
