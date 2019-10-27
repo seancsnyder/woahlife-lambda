@@ -61,15 +61,9 @@ provider:
         - dynamodb:Query
       Resource: 
         - !Sub "arn:aws:dynamodb:#{AWS::Region}:#{AWS::AccountId}:table/woahlife_entries"
-    - Effect: Allow
-      Action: 
-        - secretsmanager:GetSecretValue
-      Resource: 
-        - !Sub "arn:aws:secretsmanager:#{AWS::Region}:#{AWS::AccountId}:secret:prod/woahlife/mailgunApiKey*"
   environment: 
     TO_EMAIL_ADDRESS: sean@snyderitis.com
-    MAILGUN_API_SSM_REGION: !Ref AWS::Region
-    MAILGUN_API_SSM_KEY: prod/woahlife/mailgunApiKey
+    MAILGUN_API_KEY: ${ssm:/prod/woahlife/mailgunApiKey~true}
   logRetentionInDays: 30 
 
 functions:

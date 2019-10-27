@@ -1,6 +1,6 @@
 import base64
 from botocore.exceptions import ClientError
-from botocore.vendored import requests
+import requests
 from boto3.dynamodb.conditions import Key, Attr
 from botocore.exceptions import ClientError
 import boto3
@@ -11,45 +11,6 @@ import json
 import os
 import re
 from urllib.parse import unquote
-
-
-def get_mailgunapi_secret():
-    secret_name = os.environ['MAILGUN_API_SSM_KEY']
-    region_name = os.environ['MAILGUN_API_SSM_REGION']
-
-    # Create a Secrets Manager client
-    session = boto3.session.Session()
-    client = session.client(
-        service_name='secretsmanager',
-        region_name=region_name
-    )
-
-    # In this sample we only handle the specific exceptions for the 'GetSecretValue' API.
-    # See https://docs.aws.amazon.com/secretsmanager/latest/apireference/API_GetSecretValue.html
-    # We rethrow the exception by default.
-
-    try:
-        get_secret_value_response = client.get_secret_value(
-            SecretId=secret_name
-        )
-    except ClientError as e:
-        raise e
-    else:
-        # Decrypts secret using the associated KMS CMK.
-        # Depending on whether the secret is a string or binary, one of these fields will be populated.
-        if 'SecretString' in get_secret_value_response:
-            decodedSecret = get_secret_value_response['SecretString']
-        else:
-            decodedSecret = base64.b64decode(get_secret_value_response['SecretBinary'])
-
-    # Secret is stored as a json key/value decoded string
-    decodedSecretJson = json.loads(decodedSecret)
-
-    if 'MAILGUN_API_KEY' not in decodedSecretJson:
-        raise Exception("Unable to find the key in the decoded json encoded object")
-
-    return decodedSecretJson['MAILGUN_API_KEY']
-
 
 def requestEntry(event, context):
     emailAddress = os.environ['TO_EMAIL_ADDRESS']
@@ -69,7 +30,7 @@ def requestEntry(event, context):
     try:
         requests.post(
             "https://api.mailgun.net/v3/woahlife.com/messages",
-            auth=("api", get_mailgunapi_secret()),
+            auth=("api", os.environ['MAILGUN_API_KEY']),
             data={
                 "from": "Woahlife <post@woahlife.com>",
                 "to": ["sean@snyderitis.com"],
@@ -101,7 +62,7 @@ def receiveEntry(event, context):
 
     response = requests.get(
         mailgunPostBody['message-url'],
-        auth=("api", get_mailgunapi_secret()))
+        auth=("api", os.environ['MAILGUN_API_KEY']))
 
     message = response.json()
 
@@ -170,7 +131,7 @@ def browseEntries(event, context):
 
     response = requests.get(
         mailgunPostBody['message-url'],
-        auth=("api", get_mailgunapi_secret()))
+        auth=("api", os.environ['MAILGUN_API_KEY']))
 
     message = response.json()
 
@@ -252,7 +213,7 @@ def browseEntries(event, context):
     try:
         requests.post(
             "https://api.mailgun.net/v3/woahlife.com/messages",
-            auth=("api", get_mailgunapi_secret()),
+            auth=("api", os.environ['MAILGUN_API_KEY']),
             data={
                 "from": "Woahlife <post@woahlife.com>",
                 "to": [os.environ['TO_EMAIL_ADDRESS']],
