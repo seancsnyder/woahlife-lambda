@@ -22,7 +22,7 @@ custom:
         evaluationPeriods: 1
         datapointsToAlarm: 1
         comparisonOperator: GreaterThanOrEqualToThreshold
-        treatMissingData: missing
+        treatMissingData: notBreaching
       functionErrors:
         namespace: 'AWS/Lambda'
         metric: Errors
@@ -74,9 +74,16 @@ functions:
     memorySize: 128
     timeout: 15
     events:
-      - http:
+      - 
+        http:
           path: request
           method: get
+      - 
+        schedule:
+          name: ${self:provider.stage}-woahlife-request-journal-entry-schedule
+          description: Trigger the lambda to send the email requesting a journal entry
+          rate: cron(0 2,14 * * ? *)
+          enabled: true
   ReceiveEntry:
     handler: handler.receiveEntry
     name: ${self:app}-${self:provider.stage}-receive-incoming-journal-entry
@@ -102,25 +109,4 @@ functions:
     name: ${self:app}-${self:provider.stage}-cleanup-existing-journal-entries
     description: Cleanup the existing entries
     memorySize: 256
-    timeout: 60          
-
-resources:
-  Resources:
-    RequestingJournalCron:
-      Type: AWS::Events::Rule
-      Properties: 
-        Description: Trigger the lambda to send the email requesting a journal entry
-        Name: ${self:provider.stage}-woahlife-request-journal-entryEventsRuleSchedule1
-        ScheduleExpression: cron(0 2,14 * * ? *)
-        State: ENABLED
-        Targets: 
-          - Arn: !GetAtt RequestEntryLambdaFunction.Arn
-            Id: TargetFunction1
-    PermissionForEventsToInvokeLambda: 
-      Type: AWS::Lambda::Permission
-      Properties: 
-        FunctionName: 
-          Ref: RequestEntryLambdaFunction
-        Action: lambda:InvokeFunction
-        Principal: events.amazonaws.com
-        SourceArn: !GetAtt RequestingJournalCron.Arn
+    timeout: 60
