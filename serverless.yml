@@ -4,7 +4,10 @@ org: seancsnyder
 plugins:
   - serverless-pseudo-parameters
   - serverless-plugin-aws-alerts
+  - serverless-python-requirements
 custom:
+  pythonRequirements:
+    dockerizePip: true
   alerts:
     topics:
       alarm:

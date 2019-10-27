@@ -1,11 +1,26 @@
 {
   "name": "woahlife",
-  "description": "",
+  "description": "Couple lambdas to build out the functionality of a woahlife journaling application",
   "version": "0.1.0",
   "dependencies": {},
   "devDependencies": {
     "serverless": "^1.50.0",
     "serverless-plugin-aws-alerts": "^1.4.0",
-    "serverless-pseudo-parameters": "^2.5.0"
-  }
+    "serverless-pseudo-parameters": "^2.5.0",
+    "serverless-python-requirements": "^5.0.0"
+  },
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/seancsnyder/woahlife-lambda.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/seancsnyder/woahlife-lambda/issues"
+  },
+  "homepage": "https://github.com/seancsnyder/woahlife-lambda#readme"
 }
