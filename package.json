@@ -6,6 +6,6 @@
   "devDependencies": {
     "serverless": "^1.50.0",
     "serverless-plugin-aws-alerts": "^1.4.0",
-    "serverless-pseudo-parameters": "^2.4.0"
+    "serverless-pseudo-parameters": "^2.5.0"
   }
 }

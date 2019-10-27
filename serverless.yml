@@ -65,6 +65,9 @@ provider:
     TO_EMAIL_ADDRESS: sean@snyderitis.com
     MAILGUN_API_KEY: ${ssm:/prod/woahlife/mailgunApiKey~true}
   logRetentionInDays: 30 
+  tracing:
+    apiGateway: true
+    lambda: true 
 
 functions:
   RequestEntry:
@@ -72,7 +75,7 @@ functions:
     name: ${self:app}-${self:provider.stage}-request-new-journal-entry
     description: Send a request for a journal entry
     memorySize: 128
-    timeout: 15
+    timeout: 60
     events:
       - 
         http:
@@ -89,9 +92,10 @@ functions:
     name: ${self:app}-${self:provider.stage}-receive-incoming-journal-entry
     description: Receive and process the incoming journal entry
     memorySize: 128
-    timeout: 15
+    timeout: 60
     events:
-      - http:
+      - 
+        http:
           path: receive
           method: post
   BrowseEntries:
@@ -101,7 +105,8 @@ functions:
     memorySize: 256
     timeout: 60
     events:
-      - http:
+      - 
+        http:
           path: browse
           method: post
   CleanupEntries:
