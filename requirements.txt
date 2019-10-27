@@ -1,4 +1,5 @@
 boto3==1.9.105
+botocore==1.12.253
 certifi==2019.6.16
 chardet==3.0.4
 docutils==0.14

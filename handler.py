@@ -241,26 +241,42 @@ def cleanupEntries(event, context):
     currentMonth = int(pacificDate.strftime("%m"))
     currentDay = int(pacificDate.strftime("%d"))
 
-    #dateCursor = datetime.datetime(2005, 1, 1)
-    #endDate = datetime.datetime(currentYear, currentMonth, currentDay)
+    dateCursor = datetime.datetime(2005, 1, 1)
+    endDate = datetime.datetime(currentYear, currentMonth, currentDay)
 
     dateCursor = datetime.datetime(2019, 7, 28)
-    endDate = datetime.datetime(2019, 7, 31)
+    endDate = datetime.datetime(2019, 7, 29)
 
     dateCursorStep = datetime.timedelta(days=1)
         
     while dateCursor <= endDate:
-        currentDate = dateCursor.strftime('%Y-%m-%d')
         dateKey = int(dateCursor.strftime('%Y%m%d'))
         
         # Try to get an item by that dateKey
         response = table.get_item(Key={'date': dateKey})
         
         if 'Item' in response.keys():
-            entries = str(response['Item']['entries'])
+            entries = response['Item']['entries']
 
-            for entry in response['Item']['entries']:
-                print(entry.replace("=E2=80=99", "'"))
+            for key, entry in enumerate(response['Item']['entries']):
+                cleanedEntry = entry
+
+                cleanedEntry = cleanedEntry.replace("=E2=80=99", "'")
+                cleanedEntry = cleanedEntry.replace("= ", "")
+
+                entries[key] = cleanedEntry
+
+            table.update_item(
+                Key={'date': dateKey},
+                UpdateExpression='SET entries = :entries',
+                ExpressionAttributeValues={
+                    ':entries': entries
+                }
+            )
+            
+            print("Cleaned up: " + str(dateKey))
 
         dateCursor += dateCursorStep
+
+    return True
 
