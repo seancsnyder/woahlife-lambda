@@ -244,8 +244,8 @@ def cleanupEntries(event, context):
     dateCursor = datetime.datetime(2005, 1, 1)
     endDate = datetime.datetime(currentYear, currentMonth, currentDay)
 
-    dateCursor = datetime.datetime(2019, 7, 28)
-    endDate = datetime.datetime(2019, 7, 29)
+    #dateCursor = datetime.datetime(2019, 7, 28)
+    #endDate = datetime.datetime(2019, 7, 29)
 
     dateCursorStep = datetime.timedelta(days=1)
         
@@ -273,7 +273,7 @@ def cleanupEntries(event, context):
                     ':entries': entries
                 }
             )
-            
+
             print("Cleaned up: " + str(dateKey))
 
         dateCursor += dateCursorStep
