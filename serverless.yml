@@ -70,6 +70,7 @@ provider:
     TO_EMAIL_ADDRESS: sean@snyderitis.com
     MAILGUN_API_SSM_REGION: !Ref AWS::Region
     MAILGUN_API_SSM_KEY: prod/woahlife/mailgunApiKey
+  logRetentionInDays: 30 
 
 functions:
   RequestEntry:
