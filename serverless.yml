@@ -64,6 +64,15 @@ provider:
         - dynamodb:Query
       Resource: 
         - !GetAtt DynamoTable.Arn
+    - Effect: Allow
+      Action:
+        - es:ESHttpDelete
+        - es:ESHttpGet
+        - es:ESHttpHead
+        - es:ESHttpPost
+        - es:ESHttpPut
+      Resource: !GetAtt ElasticSearchInstance.Arn
+      
   environment: 
     TO_EMAIL_ADDRESS: sean@snyderitis.com
     MAILGUN_API_KEY: ${ssm:/prod/woahlife/mailgunApiKey~true}
@@ -119,9 +128,35 @@ functions:
     description: Cleanup the existing entries
     memorySize: 256
     timeout: 300
+  SyncElasticSearch:
+    handler: handler.syncElasticSearch
+    name: ${self:app}-${self:provider.stage}-sync-elasticsearch-journal-entries
+    description: Sync the elasticsearch indexes
+    memorySize: 256
+    timeout: 300
+  Search:
+    handler: handler.search
+    name: ${self:app}-${self:provider.stage}-search-journal-entries
+    description: Search through journal entries
+    memorySize: 256
+    timeout: 300    
 
 resources:
   Resources:
+    ElasticSearchInstance:
+      Type: AWS::Elasticsearch::Domain
+      Properties:
+        DomainName: ${self:app}-${self:provider.stage}-search
+        EBSOptions:
+          EBSEnabled: true
+          VolumeType: gp2
+          VolumeSize: 10
+        ElasticsearchClusterConfig:
+          InstanceType: t2.small.elasticsearch
+          InstanceCount: 1
+          DedicatedMasterEnabled: false
+          ZoneAwarenessEnabled: false
+        ElasticsearchVersion: 7.1
     DynamoTable:
       Type: AWS::DynamoDB::Table
       Properties: 

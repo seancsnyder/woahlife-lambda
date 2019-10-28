@@ -11,6 +11,7 @@ import json
 import os
 import re
 from urllib.parse import unquote
+from elasticsearch import Elasticsearch
 
 def requestEntry(event, context):
     emailAddress = os.environ['TO_EMAIL_ADDRESS']
@@ -44,7 +45,7 @@ def requestEntry(event, context):
         raise e
     else:
         print("Sent: journal entry (" + subject + ") to " + emailAddress)
-        
+
         return {
             'statusCode': 200,
             'body': "OK"
@@ -281,3 +282,56 @@ def cleanupEntries(event, context):
 
     return True
 
+
+def syncElasticSearch(event, context):
+    dynamodb = boto3.resource('dynamodb')
+    table = dynamodb.Table(os.environ['DYANMODB_TABLE'])
+
+    es = Elasticsearch([os.environ['ELASTICSEARCH_HOST']])
+
+    # ignore 400 cause by IndexAlreadyExistsException when creating an index
+    es.indices.create(index=os.environ['ELASTICSEARCH_JOURNALENTRY_INDEX'], ignore=400)
+    
+    pacific = dateutil.tz.gettz('US/Pacific')
+    pacificDate = datetime.datetime.now(tz=pacific)
+    currentYear = int(pacificDate.strftime("%Y"))
+    currentMonth = int(pacificDate.strftime("%m"))
+    currentDay = int(pacificDate.strftime("%d"))
+
+    #dateCursor = datetime.datetime(2005, 1, 1)
+    #endDate = datetime.datetime(currentYear, currentMonth, currentDay)
+
+    dateCursor = datetime.datetime(2019, 7, 28)
+    endDate = datetime.datetime(2019, 7, 29)
+
+    dateCursorStep = datetime.timedelta(days=1)
+        
+    while dateCursor <= endDate:
+        dateKey = int(dateCursor.strftime('%Y%m%d'))
+        esDateKey = dateCursor.strftime('%Y-%m-%d')
+        
+        # Try to get an item by that dateKey
+        response = table.get_item(Key={'date': dateKey})
+        
+        if 'Item' in response.keys():
+            entries = response['Item']['entries']
+
+            for key, entry in enumerate(response['Item']['entries']):
+                es.index(index=os.environ['ELASTICSEARCH_JOURNALENTRY_INDEX'], body=entry, id=esDateKey)
+
+        dateCursor += dateCursorStep
+
+    return True
+
+def search(event, context):
+    es = Elasticsearch([os.environ['ELASTICSEARCH_HOST']])
+
+    # ignore 400 cause by IndexAlreadyExistsException when creating an index
+    es.indices.create(index=os.environ['ELASTICSEARCH_JOURNALENTRY_INDEX'], ignore=400)
+    
+    results = es.search(index=os.environ['ELASTICSEARCH_JOURNALENTRY_INDEX'], body="bean")
+        
+    for result in results:
+        print(result)
+
+    return True    
