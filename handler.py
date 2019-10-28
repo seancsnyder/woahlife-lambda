@@ -357,7 +357,7 @@ def rebuildElasticSearch(event, context):
 
     return True
 
-def search(event, context):
+def searchEntries(event, context):
     es = Elasticsearch([os.environ['ELASTICSEARCH_HOST']])
 
     # ignore 400 cause by IndexAlreadyExistsException when creating an index

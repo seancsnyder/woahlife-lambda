@@ -71,12 +71,12 @@ provider:
         - es:ESHttpHead
         - es:ESHttpPost
         - es:ESHttpPut
-      Resource: !GetAtt ElasticSearchInstance.Arn
+      Resource: !GetAtt ElasticSearchDomain.Arn
 
   environment: 
     TO_EMAIL_ADDRESS: sean@snyderitis.com
     MAILGUN_API_KEY: ${ssm:/prod/woahlife/mailgunApiKey~true}
-    ELASTICSEARCH_HOST: !GetAtt ElasticSearchInstance.DomainEndpoint
+    ELASTICSEARCH_HOST: !GetAtt ElasticSearchDomain.DomainEndpoint
     ELASTICSEARCH_JOURNALENTRY_INDEX: woahlife-entries
     DYANMODB_TABLE: !Ref DynamoTable
   logRetentionInDays: 30 
@@ -144,8 +144,8 @@ functions:
       - stream:
           type: dynamodb
           arn: !GetAtt DynamoTable.StreamArn
-  Search:
-    handler: handler.search
+  SearchEntries:
+    handler: handler.searchEntries
     name: ${self:app}-${self:provider.stage}-search-journal-entries
     description: Search through journal entries
     memorySize: 256
@@ -153,10 +153,10 @@ functions:
 
 resources:
   Resources:
-    ElasticSearchInstance:
+    ElasticSearchDomain:
       Type: AWS::Elasticsearch::Domain
       Properties:
-        DomainName: ${self:app}-${self:provider.stage}-search
+        DomainName: ${self:app}-${self:provider.stage}
         EBSOptions:
           EBSEnabled: true
           VolumeType: gp2
@@ -175,17 +175,17 @@ resources:
                   - arn:aws:iam::#{AWS::AccountId}:root
                   - !Sub arn:aws:iam::#{AWS::AccountId}:role/${self:app}-${self:provider.stage}-#{AWS::Region}-lambdaRole
               Action: "es:*"
-              Resource: !Sub arn:aws:es:#{AWS::Region}:#{AWS::AccountId}:domain/${self:app}-${self:provider.stage}-search/*
+              Resource: !Sub arn:aws:es:#{AWS::Region}:#{AWS::AccountId}:domain/${self:app}-${self:provider.stage}/*
             - Effect: Allow
               Principal:
                 AWS: arn:aws:iam::#{AWS::AccountId}:root
               Action: "es:*"
-              Resource: !Sub arn:aws:es:#{AWS::Region}:#{AWS::AccountId}:domain/${self:app}-${self:provider.stage}-search/*
+              Resource: !Sub arn:aws:es:#{AWS::Region}:#{AWS::AccountId}:domain/${self:app}-${self:provider.stage}/*
             - Effect: Allow
               Principal:
                 AWS: "*"
               Action: "es:*"
-              Resource: !Sub arn:aws:es:#{AWS::Region}:#{AWS::AccountId}:domain/${self:app}-${self:provider.stage}-search/*
+              Resource: !Sub arn:aws:es:#{AWS::Region}:#{AWS::AccountId}:domain/${self:app}-${self:provider.stage}/*
               Condition:
                 IpAddress:
                   aws:SourceIp: 23.241.193.18
