@@ -44,6 +44,7 @@ def requestEntry(event, context):
         raise e
     else:
         print("Sent: journal entry (" + subject + ") to " + emailAddress)
+        
         return {
             'statusCode': 200,
             'body': "OK"
@@ -53,7 +54,7 @@ def requestEntry(event, context):
 def receiveEntry(event, context):
     dynamodb = boto3.resource('dynamodb')
 
-    table = dynamodb.Table('woahlife_entries')
+    table = dynamodb.Table(os.environ['DYANMODB_TABLE'])
  
     mailgunPostBody = {}
     for item in event['body'].split("&"):
@@ -120,7 +121,7 @@ def receiveEntry(event, context):
 
 def browseEntries(event, context):   
     dynamodb = boto3.resource('dynamodb')
-    table = dynamodb.Table('woahlife_entries')
+    table = dynamodb.Table(os.environ['DYANMODB_TABLE'])
     
     foundEntries = 0
 
@@ -233,7 +234,7 @@ def browseEntries(event, context):
 
 def cleanupEntries(event, context):
     dynamodb = boto3.resource('dynamodb')
-    table = dynamodb.Table('woahlife_entries')
+    table = dynamodb.Table(os.environ['DYANMODB_TABLE'])
     
     pacific = dateutil.tz.gettz('US/Pacific')
     pacificDate = datetime.datetime.now(tz=pacific)

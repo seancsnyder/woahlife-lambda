@@ -11,13 +11,13 @@ custom:
   alerts:
     topics:
       alarm:
-        topic: ${self:app}-${self:provider.stage}-cloudwatch-alarms
+        topic: ${self:app}-${self:provider.stage}-alarm
         notifications:
           - protocol: email
             endpoint: noreply@snyderitis.com
     definitions:
       functionInvocations:
-        namespace: 'AWS/Lambda'
+        namespace: AWS/Lambda
         metric: Invocations
         threshold: 10
         statistic: Sum
@@ -27,7 +27,7 @@ custom:
         comparisonOperator: GreaterThanOrEqualToThreshold
         treatMissingData: notBreaching
       functionErrors:
-        namespace: 'AWS/Lambda'
+        namespace: AWS/Lambda
         metric: Errors
         threshold: 1
         statistic: Sum
@@ -52,10 +52,10 @@ provider:
         - logs:CreateLogStream
         - logs:PutLogEvents
       Resource: 
-        - !Sub "arn:aws:logs:#{AWS::Region}:#{AWS::AccountId}:log-group:/aws/lambda/${self:app}-${self:provider.stage}-*"
-        - !Sub "arn:aws:logs:#{AWS::Region}:#{AWS::AccountId}:log-group:/aws/api-gateway/woahlife-prod*"
-        - !Sub "arn:aws:logs:#{AWS::Region}:#{AWS::AccountId}:log-group:/aws/apigateway/welcome*"
-        - !Sub "arn:aws:logs:#{AWS::Region}:#{AWS::AccountId}:log-group:API-Gateway-Execution-Logs*"
+        - !Sub arn:aws:logs:#{AWS::Region}:#{AWS::AccountId}:log-group:/aws/lambda/${self:app}-${self:provider.stage}-*
+        - !Sub arn:aws:logs:#{AWS::Region}:#{AWS::AccountId}:log-group:/aws/api-gateway/${self:app}-${self:provider.stage}*
+        - !Sub arn:aws:logs:#{AWS::Region}:#{AWS::AccountId}:log-group:/aws/apigateway/welcome*
+        - !Sub arn:aws:logs:#{AWS::Region}:#{AWS::AccountId}:log-group:API-Gateway-Execution-Logs*
     - Effect: Allow
       Action:
         - dynamodb:PutItem
@@ -63,16 +63,19 @@ provider:
         - dynamodb:UpdateItem
         - dynamodb:Query
       Resource: 
-        - !Sub "arn:aws:dynamodb:#{AWS::Region}:#{AWS::AccountId}:table/woahlife_entries"
+        - !GetAtt DynamoTable.Arn
   environment: 
     TO_EMAIL_ADDRESS: sean@snyderitis.com
     MAILGUN_API_KEY: ${ssm:/prod/woahlife/mailgunApiKey~true}
+    ELASTICSEARCH_HOST: !GetAtt ElasticSearchInstance.DomainEndpoint
+    ELASTICSEARCH_JOURNALENTRY_INDEX: woahlife-entries
+    DYANMODB_TABLE: !Ref DynamoTable
   logRetentionInDays: 30 
   tracing:
     apiGateway: true
     lambda: true 
-  tags:
-    app: woahlife
+  stackTags:
+    APP: woahlife
 
 functions:
   RequestEntry:
@@ -82,12 +85,10 @@ functions:
     memorySize: 128
     timeout: 60
     events:
-      - 
-        http:
+      - http:
           path: request
           method: get
-      - 
-        schedule:
+      - schedule:
           name: ${self:provider.stage}-woahlife-request-journal-entry-schedule
           description: Trigger the lambda to send the email requesting a journal entry
           rate: cron(0 2,14 * * ? *)
@@ -99,8 +100,7 @@ functions:
     memorySize: 128
     timeout: 60
     events:
-      - 
-        http:
+      - http:
           path: receive
           method: post
   BrowseEntries:
@@ -110,8 +110,7 @@ functions:
     memorySize: 256
     timeout: 60
     events:
-      - 
-        http:
+      - http:
           path: browse
           method: post
   CleanupEntries:
@@ -120,3 +119,22 @@ functions:
     description: Cleanup the existing entries
     memorySize: 256
     timeout: 300
+
+resources:
+  Resources:
+    DynamoTable:
+      Type: AWS::DynamoDB::Table
+      Properties: 
+        TableName: ${self:app}-${self:provider.stage}-entries
+        AttributeDefinitions: 
+          - AttributeName: date
+            AttributeType: N
+        BillingMode: PAY_PER_REQUEST
+        KeySchema: 
+          - AttributeName: date
+            KeyType: HASH
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+        SSESpecification: 
+          SSEEnabled: true
+          SSEType: KMS
