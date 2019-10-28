@@ -1,8 +1,7 @@
 import base64
 from botocore.exceptions import ClientError
 import requests
-from boto3.dynamodb.conditions import Key, Attr
-from botocore.exceptions import ClientError
+import boto3
 import boto3
 import datetime
 import dateutil.tz
@@ -11,7 +10,8 @@ import json
 import os
 import re
 from urllib.parse import unquote
-from elasticsearch import Elasticsearch
+from elasticsearch import Elasticsearch, RequestsHttpConnection
+from requests_aws4auth import AWS4Auth
 
 def requestEntry(event, context):
     emailAddress = os.environ['TO_EMAIL_ADDRESS']
@@ -103,7 +103,7 @@ def receiveEntry(event, context):
         )
         
         print("Updated existing dynamodb item entry")
-    except:
+    except Exception as e:
         #If we threw here, the item didn't exist, so create a new item
         table.put_item(
            Item={
@@ -223,7 +223,7 @@ def browseEntries(event, context):
                 "text": responseBody
             }
         )
-    except ClientError as e:
+    except Exception as e:
         print(e.response['Error']['Message'])
 
         raise e
@@ -245,9 +245,6 @@ def cleanupEntries(event, context):
 
     dateCursor = datetime.datetime(2005, 1, 1)
     endDate = datetime.datetime(currentYear, currentMonth, currentDay)
-
-    #dateCursor = datetime.datetime(2019, 7, 28)
-    #endDate = datetime.datetime(2019, 7, 29)
 
     dateCursorStep = datetime.timedelta(days=1)
         
@@ -286,10 +283,29 @@ def syncElasticSearch(event, context):
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(os.environ['DYANMODB_TABLE'])
 
-    print(event['Records'][0]['eventName'])
-    print(event['Records'][0]['dynamodb']['Keys']['date']['N'])
+    credentials = boto3.Session().get_credentials()
+
+    es = Elasticsearch(
+        hosts = [{'host': os.environ['ELASTICSEARCH_HOST'], 'port': 443}],
+        http_auth = AWS4Auth(credentials.access_key, credentials.secret_key, 'us-west-2', 'es', session_token=credentials.token),
+        use_ssl = True,
+        verify_certs = True,
+        connection_class = RequestsHttpConnection
+    )
+
+    # ignore 400 cause by IndexAlreadyExistsException when creating an index
+    es.indices.create(index=os.environ['ELASTICSEARCH_JOURNALENTRY_INDEX'], ignore=400)
+
+    entries = []
     for entry in event['Records'][0]['dynamodb']['NewImage']['entries']['L']:
-        print(entry['S'])
+        entries.append(entry['S'])
+
+    dateKey = event['Records'][0]['dynamodb']['Keys']['date']['N']
+    
+    #build the object we want to store in elasticsearch
+    body = json.JSONEncoder().encode({"entry": {"date": dateKey, "entries": entries}}) 
+
+    es.index(index=os.environ['ELASTICSEARCH_JOURNALENTRY_INDEX'], body=body, id=dateKey)
 
     return True
 
@@ -297,7 +313,15 @@ def rebuildElasticSearch(event, context):
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(os.environ['DYANMODB_TABLE'])
 
-    es = Elasticsearch([os.environ['ELASTICSEARCH_HOST']])
+    credentials = boto3.Session().get_credentials()
+
+    es = Elasticsearch(
+        hosts = [{'host': os.environ['ELASTICSEARCH_HOST'], 'port': 443}],
+        http_auth = AWS4Auth(credentials.access_key, credentials.secret_key, 'us-west-2', 'es', session_token=credentials.token),
+        use_ssl = True,
+        verify_certs = True,
+        connection_class = RequestsHttpConnection
+    )
 
     # ignore 400 cause by IndexAlreadyExistsException when creating an index
     es.indices.create(index=os.environ['ELASTICSEARCH_JOURNALENTRY_INDEX'], ignore=400)
@@ -308,26 +332,26 @@ def rebuildElasticSearch(event, context):
     currentMonth = int(pacificDate.strftime("%m"))
     currentDay = int(pacificDate.strftime("%d"))
 
-    #dateCursor = datetime.datetime(2005, 1, 1)
-    #endDate = datetime.datetime(currentYear, currentMonth, currentDay)
-
-    dateCursor = datetime.datetime(2019, 7, 28)
-    endDate = datetime.datetime(2019, 7, 29)
+    dateCursor = datetime.datetime(2005, 1, 1)
+    endDate = datetime.datetime(currentYear, currentMonth, currentDay)
 
     dateCursorStep = datetime.timedelta(days=1)
         
     while dateCursor <= endDate:
         dateKey = int(dateCursor.strftime('%Y%m%d'))
-        esDateKey = dateCursor.strftime('%Y-%m-%d')
         
         # Try to get an item by that dateKey
         response = table.get_item(Key={'date': dateKey})
         
         if 'Item' in response.keys():
-            entries = response['Item']['entries']
+            # date is actually a Decimal and we can't serialize it in python.
+            response['Item']['date'] = str(response['Item']['date'])
+            
+            body = json.JSONEncoder().encode({"entry": response['Item']})
 
-            for key, entry in enumerate(response['Item']['entries']):
-                es.index(index=os.environ['ELASTICSEARCH_JOURNALENTRY_INDEX'], body=entry, id=esDateKey)
+            es.index(index=os.environ['ELASTICSEARCH_JOURNALENTRY_INDEX'], body=body, id=dateKey)
+
+            print("rebuilt index for entry: " + str(dateKey))
 
         dateCursor += dateCursorStep
 

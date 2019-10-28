@@ -149,7 +149,7 @@ functions:
     name: ${self:app}-${self:provider.stage}-search-journal-entries
     description: Search through journal entries
     memorySize: 256
-    timeout: 300    
+    timeout: 60    
 
 resources:
   Resources:
@@ -169,6 +169,13 @@ resources:
         AccessPolicies:
           Version: "2012-10-17"
           Statement:
+            - Effect: Allow
+              Principal:
+                AWS: 
+                  - arn:aws:iam::#{AWS::AccountId}:root
+                  - !Sub arn:aws:iam::#{AWS::AccountId}:role/${self:app}-${self:provider.stage}-#{AWS::Region}-lambdaRole
+              Action: "es:*"
+              Resource: !Sub arn:aws:es:#{AWS::Region}:#{AWS::AccountId}:domain/${self:app}-${self:provider.stage}-search/*
             - Effect: Allow
               Principal:
                 AWS: arn:aws:iam::#{AWS::AccountId}:root
@@ -201,3 +208,6 @@ resources:
           SSEType: KMS
         StreamSpecification:
           StreamViewType: NEW_IMAGE
+        Tags: 
+          - Key: APP
+            Value: ${self:provider.stackTags.APP}
