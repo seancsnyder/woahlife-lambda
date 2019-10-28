@@ -303,7 +303,9 @@ def syncElasticSearch(event, context):
     dateKey = event['Records'][0]['dynamodb']['Keys']['date']['N']
     
     #build the object we want to store in elasticsearch
-    body = json.JSONEncoder().encode({"entry": {"date": dateKey, "entries": entries}}) 
+    body = json.JSONEncoder().encode({"entry": {"entries": entries}})
+    #TODO add other things we wanna search on...
+    #add all the things we'd normally browse for?
 
     es.index(index=os.environ['ELASTICSEARCH_JOURNALENTRY_INDEX'], body=body, id=dateKey)
 
@@ -344,10 +346,9 @@ def rebuildElasticSearch(event, context):
         response = table.get_item(Key={'date': dateKey})
         
         if 'Item' in response.keys():
-            # date is actually a Decimal and we can't serialize it in python.
-            response['Item']['date'] = str(response['Item']['date'])
-            
-            body = json.JSONEncoder().encode({"entry": response['Item']})
+           
+            body = json.JSONEncoder().encode({"entry": {"entries": response['Item']['entries']}})
+            #TODO add other things we wanna search on...
 
             es.index(index=os.environ['ELASTICSEARCH_JOURNALENTRY_INDEX'], body=body, id=dateKey)
 
@@ -358,14 +359,22 @@ def rebuildElasticSearch(event, context):
     return True
 
 def searchEntries(event, context):
-    es = Elasticsearch([os.environ['ELASTICSEARCH_HOST']])
+    credentials = boto3.Session().get_credentials()
+
+    es = Elasticsearch(
+        hosts = [{'host': os.environ['ELASTICSEARCH_HOST'], 'port': 443}],
+        http_auth = AWS4Auth(credentials.access_key, credentials.secret_key, 'us-west-2', 'es', session_token=credentials.token),
+        use_ssl = True,
+        verify_certs = True,
+        connection_class = RequestsHttpConnection
+    )
 
     # ignore 400 cause by IndexAlreadyExistsException when creating an index
     es.indices.create(index=os.environ['ELASTICSEARCH_JOURNALENTRY_INDEX'], ignore=400)
     
-    results = es.search(index=os.environ['ELASTICSEARCH_JOURNALENTRY_INDEX'], body="bean")
+    results = es.search(index=os.environ['ELASTICSEARCH_JOURNALENTRY_INDEX'], body=json.JSONEncoder().encode({"query" : {"match" : {"entry.entries" : "bunny"}}}))
         
-    for result in results:
+    for result in results['hits']:
         print(result)
 
     return True    
