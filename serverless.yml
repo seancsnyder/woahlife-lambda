@@ -72,7 +72,7 @@ provider:
         - es:ESHttpPost
         - es:ESHttpPut
       Resource: !GetAtt ElasticSearchInstance.Arn
-      
+
   environment: 
     TO_EMAIL_ADDRESS: sean@snyderitis.com
     MAILGUN_API_KEY: ${ssm:/prod/woahlife/mailgunApiKey~true}
@@ -128,12 +128,22 @@ functions:
     description: Cleanup the existing entries
     memorySize: 256
     timeout: 300
-  SyncElasticSearch:
-    handler: handler.syncElasticSearch
-    name: ${self:app}-${self:provider.stage}-sync-elasticsearch-journal-entries
-    description: Sync the elasticsearch indexes
+  RebuildElasticSearch:
+    handler: handler.rebuildElasticSearch
+    name: ${self:app}-${self:provider.stage}-rebuild-elasticsearch-journal-entries
+    description: Rebuild the elasticsearch indexes
     memorySize: 256
     timeout: 300
+  SyncElasticSearch:
+    handler: handler.syncElasticSearch
+    name: ${self:app}-${self:provider.stage}-sync-elasticsearch-journal-entry
+    description: Sync the dynamodb item update to the elasticsearch index
+    memorySize: 128
+    timeout: 60 
+    events:
+      - stream:
+          type: dynamodb
+          arn: !GetAtt DynamoTable.StreamArn
   Search:
     handler: handler.search
     name: ${self:app}-${self:provider.stage}-search-journal-entries
@@ -156,6 +166,22 @@ resources:
           InstanceCount: 1
           DedicatedMasterEnabled: false
           ZoneAwarenessEnabled: false
+        AccessPolicies:
+          Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Principal:
+                AWS: arn:aws:iam::#{AWS::AccountId}:root
+              Action: "es:*"
+              Resource: !Sub arn:aws:es:#{AWS::Region}:#{AWS::AccountId}:domain/${self:app}-${self:provider.stage}-search/*
+            - Effect: Allow
+              Principal:
+                AWS: "*"
+              Action: "es:*"
+              Resource: !Sub arn:aws:es:#{AWS::Region}:#{AWS::AccountId}:domain/${self:app}-${self:provider.stage}-search/*
+              Condition:
+                IpAddress:
+                  aws:SourceIp: 23.241.193.18
         ElasticsearchVersion: 7.1
     DynamoTable:
       Type: AWS::DynamoDB::Table
@@ -173,3 +199,5 @@ resources:
         SSESpecification: 
           SSEEnabled: true
           SSEType: KMS
+        StreamSpecification:
+          StreamViewType: NEW_IMAGE

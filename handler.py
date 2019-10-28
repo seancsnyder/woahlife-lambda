@@ -282,8 +282,18 @@ def cleanupEntries(event, context):
 
     return True
 
-
 def syncElasticSearch(event, context):
+    dynamodb = boto3.resource('dynamodb')
+    table = dynamodb.Table(os.environ['DYANMODB_TABLE'])
+
+    print(event['Records'][0]['eventName'])
+    print(event['Records'][0]['dynamodb']['Keys']['date']['N'])
+    for entry in event['Records'][0]['dynamodb']['NewImage']['entries']['L']:
+        print(entry['S'])
+
+    return True
+
+def rebuildElasticSearch(event, context):
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(os.environ['DYANMODB_TABLE'])
 
