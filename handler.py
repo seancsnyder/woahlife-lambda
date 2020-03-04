@@ -180,7 +180,7 @@ def browseEntries(event, context):
         if subjectDate.isdigit():
             browseYear = int(subjectDate)
 
-            dateCursor = datetime.datetime(currentYear, currentMonth, currentDay)
+            dateCursor = datetime.datetime(browseYear, 1, 1)
     
         print("Attempting to browse journal entries for year: " + str(browseYear))
             
