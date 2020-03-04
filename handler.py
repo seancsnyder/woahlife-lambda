@@ -2,10 +2,8 @@ import sys;
 
 sys.path.insert(0, "./venv/lib/python3.8/site-packages")
 
-import base64
 from botocore.exceptions import ClientError
 import requests
-import boto3
 import boto3
 import time
 import datetime
