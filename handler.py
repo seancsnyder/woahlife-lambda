@@ -10,8 +10,8 @@ import json
 import os
 import re
 from urllib.parse import unquote
-from elasticsearch import Elasticsearch, RequestsHttpConnection
 from requests_aws4auth import AWS4Auth
+from algoliasearch.search_client import SearchClient
 
 def requestEntry(event, context):
     emailAddress = os.environ['TO_EMAIL_ADDRESS']
@@ -279,7 +279,7 @@ def cleanupEntries(event, context):
 
     return True
 
-def syncElasticSearch(event, context):
+def syncEntriesToSearchIndex(event, context):
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(os.environ['DYANMODB_TABLE'])
 
@@ -311,22 +311,14 @@ def syncElasticSearch(event, context):
 
     return True
 
-def rebuildElasticSearch(event, context):
+def rebuildSearchIndex(event, context):
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(os.environ['DYANMODB_TABLE'])
 
     credentials = boto3.Session().get_credentials()
 
-    es = Elasticsearch(
-        hosts = [{'host': os.environ['ELASTICSEARCH_HOST'], 'port': 443}],
-        http_auth = AWS4Auth(credentials.access_key, credentials.secret_key, 'us-west-2', 'es', session_token=credentials.token),
-        use_ssl = True,
-        verify_certs = True,
-        connection_class = RequestsHttpConnection
-    )
-
-    # ignore 400 cause by IndexAlreadyExistsException when creating an index
-    es.indices.create(index=os.environ['ELASTICSEARCH_JOURNALENTRY_INDEX'], ignore=400)
+    algoliaClient = SearchClient.create(os.environ['ALGOLIA_APP_ID'], os.environ['ALGOLIA_APP_KEY'])
+    algoliaIndex = algoliaClient.init_index(os.environ['ALGOLIA_INDEX_NAME'])
     
     pacific = dateutil.tz.gettz('US/Pacific')
     pacificDate = datetime.datetime.now(tz=pacific)
@@ -347,12 +339,15 @@ def rebuildElasticSearch(event, context):
         
         if 'Item' in response.keys():
            
-            body = json.JSONEncoder().encode({"entry": {"entries": response['Item']['entries']}})
+            body = json.JSONEncoder().encode({"objectID": response['Item']['Keys']['date']['N'], "entry": {"entries": response['Item']['entries']}})
+            print(body)
             #TODO add other things we wanna search on...
 
-            es.index(index=os.environ['ELASTICSEARCH_JOURNALENTRY_INDEX'], body=body, id=dateKey)
+            res = index.save_objects([body])
 
             print("rebuilt index for entry: " + str(dateKey))
+
+            return True
 
         dateCursor += dateCursorStep
 

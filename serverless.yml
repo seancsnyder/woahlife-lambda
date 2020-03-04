@@ -64,20 +64,13 @@ provider:
         - dynamodb:Query
       Resource: 
         - !GetAtt DynamoTable.Arn
-    - Effect: Allow
-      Action:
-        - es:ESHttpDelete
-        - es:ESHttpGet
-        - es:ESHttpHead
-        - es:ESHttpPost
-        - es:ESHttpPut
-      Resource: !GetAtt ElasticSearchDomain.Arn
 
   environment: 
     TO_EMAIL_ADDRESS: sean@snyderitis.com
     MAILGUN_API_KEY: ${ssm:/prod/woahlife/mailgunApiKey~true}
-    ELASTICSEARCH_HOST: !GetAtt ElasticSearchDomain.DomainEndpoint
-    ELASTICSEARCH_JOURNALENTRY_INDEX: woahlife-entries
+    ALGOLIA_APP_ID: ${ssm:/prod/woahlife/algoliaAppId~true}
+    ALGOLIA_APP_KEY: ${ssm:/prod/woahlife/algoliaAppKey~true}
+    ALGOLIA_INDEX_NAME: entries
     DYANMODB_TABLE: !Ref DynamoTable
   logRetentionInDays: 30 
   tracing:
@@ -128,16 +121,16 @@ functions:
     description: Cleanup the existing entries
     memorySize: 256
     timeout: 300
-  RebuildElasticSearch:
-    handler: handler.rebuildElasticSearch
-    name: ${self:app}-${self:provider.stage}-rebuild-elasticsearch-journal-entries
-    description: Rebuild the elasticsearch indexes
+  RebuildSearchIndex:
+    handler: handler.rebuildSearchIndex
+    name: ${self:app}-${self:provider.stage}-rebuild-search-index-journal-entries
+    description: Rebuild the search indexes
     memorySize: 256
     timeout: 300
-  SyncElasticSearch:
-    handler: handler.syncElasticSearch
-    name: ${self:app}-${self:provider.stage}-sync-elasticsearch-journal-entry
-    description: Sync the dynamodb item update to the elasticsearch index
+  SyncEntriesToSearchIndex:
+    handler: handler.syncEntriesToSearchIndex
+    name: ${self:app}-${self:provider.stage}-sync-search-index-journal-entry
+    description: Sync the dynamodb item update to the search index
     memorySize: 128
     timeout: 60 
     events:
@@ -153,43 +146,6 @@ functions:
 
 resources:
   Resources:
-    ElasticSearchDomain:
-      Type: AWS::Elasticsearch::Domain
-      Properties:
-        DomainName: ${self:app}-${self:provider.stage}
-        EBSOptions:
-          EBSEnabled: true
-          VolumeType: gp2
-          VolumeSize: 10
-        ElasticsearchClusterConfig:
-          InstanceType: t2.small.elasticsearch
-          InstanceCount: 1
-          DedicatedMasterEnabled: false
-          ZoneAwarenessEnabled: false
-        AccessPolicies:
-          Version: "2012-10-17"
-          Statement:
-            - Effect: Allow
-              Principal:
-                AWS: 
-                  - arn:aws:iam::#{AWS::AccountId}:root
-                  - !Sub arn:aws:iam::#{AWS::AccountId}:role/${self:app}-${self:provider.stage}-#{AWS::Region}-lambdaRole
-              Action: "es:*"
-              Resource: !Sub arn:aws:es:#{AWS::Region}:#{AWS::AccountId}:domain/${self:app}-${self:provider.stage}/*
-            - Effect: Allow
-              Principal:
-                AWS: arn:aws:iam::#{AWS::AccountId}:root
-              Action: "es:*"
-              Resource: !Sub arn:aws:es:#{AWS::Region}:#{AWS::AccountId}:domain/${self:app}-${self:provider.stage}/*
-            - Effect: Allow
-              Principal:
-                AWS: "*"
-              Action: "es:*"
-              Resource: !Sub arn:aws:es:#{AWS::Region}:#{AWS::AccountId}:domain/${self:app}-${self:provider.stage}/*
-              Condition:
-                IpAddress:
-                  aws:SourceIp: 23.241.193.18
-        ElasticsearchVersion: 7.1
     DynamoTable:
       Type: AWS::DynamoDB::Table
       Properties: 
