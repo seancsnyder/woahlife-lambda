@@ -1,16 +1,18 @@
+import sys; 
+
+sys.path.insert(0, "./venv/lib/python3.8/site-packages")
+
 import base64
 from botocore.exceptions import ClientError
 import requests
 import boto3
 import boto3
+import time
 import datetime
 import dateutil.tz
-import email
 import json
 import os
-import re
 from urllib.parse import unquote
-from requests_aws4auth import AWS4Auth
 from algoliasearch.search_client import SearchClient
 
 def requestEntry(event, context):
@@ -283,38 +285,35 @@ def syncEntriesToSearchIndex(event, context):
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(os.environ['DYANMODB_TABLE'])
 
-    credentials = boto3.Session().get_credentials()
-
-    es = Elasticsearch(
-        hosts = [{'host': os.environ['ELASTICSEARCH_HOST'], 'port': 443}],
-        http_auth = AWS4Auth(credentials.access_key, credentials.secret_key, 'us-west-2', 'es', session_token=credentials.token),
-        use_ssl = True,
-        verify_certs = True,
-        connection_class = RequestsHttpConnection
-    )
-
-    # ignore 400 cause by IndexAlreadyExistsException when creating an index
-    es.indices.create(index=os.environ['ELASTICSEARCH_JOURNALENTRY_INDEX'], ignore=400)
+    algoliaClient = SearchClient.create(os.environ['ALGOLIA_APP_ID'], os.environ['ALGOLIA_APP_KEY'])
+    algoliaIndex = algoliaClient.init_index(os.environ['ALGOLIA_INDEX_NAME'])
 
     entries = []
     for entry in event['Records'][0]['dynamodb']['NewImage']['entries']['L']:
         entries.append(entry['S'])
 
-    dateKey = event['Records'][0]['dynamodb']['Keys']['date']['N']
-    
-    #build the object we want to store in elasticsearch
-    body = json.JSONEncoder().encode({"entry": {"entries": entries}})
-    #TODO add other things we wanna search on...
-    #add all the things we'd normally browse for?
+    dateKey = str(event['Records'][0]['dynamodb']['Keys']['date']['N'])
 
-    es.index(index=os.environ['ELASTICSEARCH_JOURNALENTRY_INDEX'], body=body, id=dateKey)
+    date = datetime.datetime(int(dateKey[0:4]), int(dateKey[4:6]), int(dateKey[6:8]))
+
+    prettyDate = date.strftime('%A %B %d %Y')
+    timestamp = time.mktime(date.timetuple())
+    
+    body = {
+        "objectID": dateKey, 
+        "date": timestamp,
+        "prettyDate": prettyDate, 
+        "entries": entries
+    }
+    
+    res = algoliaIndex.save_objects([body])
 
     return True
 
 def rebuildSearchIndex(event, context):
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(os.environ['DYANMODB_TABLE'])
-
+    
     credentials = boto3.Session().get_credentials()
 
     algoliaClient = SearchClient.create(os.environ['ALGOLIA_APP_ID'], os.environ['ALGOLIA_APP_KEY'])
@@ -333,43 +332,88 @@ def rebuildSearchIndex(event, context):
         
     while dateCursor <= endDate:
         dateKey = int(dateCursor.strftime('%Y%m%d'))
+        prettyDate = dateCursor.strftime('%A %B %d %Y')
+        timestamp = time.mktime(dateCursor.timetuple())
         
         # Try to get an item by that dateKey
         response = table.get_item(Key={'date': dateKey})
         
         if 'Item' in response.keys():
            
-            body = json.JSONEncoder().encode({"objectID": response['Item']['Keys']['date']['N'], "entry": {"entries": response['Item']['entries']}})
-            print(body)
-            #TODO add other things we wanna search on...
-
-            res = index.save_objects([body])
+            # Add other things we wanna search on...
+            body = {
+                "objectID": str(dateKey), 
+                "date": timestamp,
+                "prettyDate": prettyDate, 
+                "entries": response['Item']['entries']
+            }
+            
+            res = algoliaIndex.save_objects([body])
 
             print("rebuilt index for entry: " + str(dateKey))
-
-            return True
 
         dateCursor += dateCursorStep
 
     return True
 
 def searchEntries(event, context):
-    credentials = boto3.Session().get_credentials()
 
-    es = Elasticsearch(
-        hosts = [{'host': os.environ['ELASTICSEARCH_HOST'], 'port': 443}],
-        http_auth = AWS4Auth(credentials.access_key, credentials.secret_key, 'us-west-2', 'es', session_token=credentials.token),
-        use_ssl = True,
-        verify_certs = True,
-        connection_class = RequestsHttpConnection
+    algoliaClient = SearchClient.create(os.environ['ALGOLIA_APP_ID'], os.environ['ALGOLIA_APP_KEY'])
+    algoliaIndex = algoliaClient.init_index(os.environ['ALGOLIA_INDEX_NAME'])
+
+    #mailgunPostBody = {}
+    #for item in event['body'].split("&"):
+    #    keyValue = item.split("=");
+    #    mailgunPostBody[keyValue[0]] = unquote(keyValue[1])
+
+    #response = requests.get(
+    #    mailgunPostBody['message-url'],
+    #    auth=("api", os.environ['MAILGUN_API_KEY']))
+
+    #message = response.json()
+
+    requestSubject = 'bunny'
+
+    results = algoliaIndex.search(
+        requestSubject, 
+        {
+            'attributesToRetrieve': [
+                'prettyDate',
+                'entries'
+            ],
+            'hitsPerPage': 100
+        }
     )
 
-    # ignore 400 cause by IndexAlreadyExistsException when creating an index
-    es.indices.create(index=os.environ['ELASTICSEARCH_JOURNALENTRY_INDEX'], ignore=400)
-    
-    results = es.search(index=os.environ['ELASTICSEARCH_JOURNALENTRY_INDEX'], body=json.JSONEncoder().encode({"query" : {"match" : {"entry.entries" : "bunny"}}}))
-        
-    for result in results['hits']:
-        print(result)
+    responseBody = "Found " + str(min(results['nbHits'], results['hitsPerPage'])) + " matching entries.\n\n"
 
-    return True    
+    for key, result in enumerate(results['hits']):
+        responseBody += result['prettyDate'] + "\n"
+
+        for entry in result['entries']:
+            responseBody += entry + "\n"
+
+        responseBody += "\n"
+    
+    responseSubject = "Woahlife Entries Search Results: " + requestSubject
+    
+    try:
+        requests.post(
+            "https://api.mailgun.net/v3/woahlife.com/messages",
+            auth=("api", os.environ['MAILGUN_API_KEY']),
+            data={
+                "from": "Woahlife <post@woahlife.com>",
+                "to": [os.environ['TO_EMAIL_ADDRESS']],
+                "subject": responseSubject,
+                "text": responseBody
+            }
+        )
+    except Exception as e:
+        print(e.response['Error']['Message'])
+
+        raise e
+    else:
+        return {
+            'statusCode': 200,
+            'body': "OK"
+        }

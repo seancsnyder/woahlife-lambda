@@ -142,7 +142,11 @@ functions:
     name: ${self:app}-${self:provider.stage}-search-journal-entries
     description: Search through journal entries
     memorySize: 256
-    timeout: 60    
+    timeout: 60
+    events:
+      - http:
+          path: search
+          method: get    
 
 resources:
   Resources:
