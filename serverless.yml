@@ -51,7 +51,7 @@ provider:
         - logs:CreateLogGroup
         - logs:CreateLogStream
         - logs:PutLogEvents
-      Resource: 
+      Resource:
         - !Sub arn:aws:logs:#{AWS::Region}:#{AWS::AccountId}:log-group:/aws/lambda/${self:app}-${self:provider.stage}-*
         - !Sub arn:aws:logs:#{AWS::Region}:#{AWS::AccountId}:log-group:/aws/api-gateway/${self:app}-${self:provider.stage}*
         - !Sub arn:aws:logs:#{AWS::Region}:#{AWS::AccountId}:log-group:/aws/apigateway/welcome*
@@ -62,20 +62,20 @@ provider:
         - dynamodb:GetItem
         - dynamodb:UpdateItem
         - dynamodb:Query
-      Resource: 
+      Resource:
         - !GetAtt DynamoTable.Arn
 
-  environment: 
+  environment:
     TO_EMAIL_ADDRESS: sean@snyderitis.com
     MAILGUN_API_KEY: ${ssm:/prod/woahlife/mailgunApiKey~true}
     ALGOLIA_APP_ID: ${ssm:/prod/woahlife/algoliaAppId~true}
     ALGOLIA_APP_KEY: ${ssm:/prod/woahlife/algoliaAppKey~true}
     ALGOLIA_INDEX_NAME: entries
     DYANMODB_TABLE: !Ref DynamoTable
-  logRetentionInDays: 30 
+  logRetentionInDays: 30
   tracing:
     apiGateway: true
-    lambda: true 
+    lambda: true
   stackTags:
     APP: woahlife
 
@@ -85,7 +85,7 @@ functions:
     name: ${self:app}-${self:provider.stage}-request-new-journal-entry
     description: Send a request for a journal entry
     memorySize: 128
-    timeout: 60
+    timeout: 30
     events:
       - http:
           path: request
@@ -100,7 +100,7 @@ functions:
     name: ${self:app}-${self:provider.stage}-receive-incoming-journal-entry
     description: Receive and process the incoming journal entry
     memorySize: 128
-    timeout: 60
+    timeout: 30
     events:
       - http:
           path: receive
@@ -110,7 +110,7 @@ functions:
     name: ${self:app}-${self:provider.stage}-browse-existing-journal-entries
     description: Browse the existing entries by year
     memorySize: 256
-    timeout: 60
+    timeout: 30
     events:
       - http:
           path: browse
@@ -132,7 +132,7 @@ functions:
     name: ${self:app}-${self:provider.stage}-sync-search-index-journal-entry
     description: Sync the dynamodb item update to the search index
     memorySize: 128
-    timeout: 60 
+    timeout: 60
     events:
       - stream:
           type: dynamodb
@@ -142,32 +142,32 @@ functions:
     name: ${self:app}-${self:provider.stage}-search-journal-entries
     description: Search through journal entries
     memorySize: 256
-    timeout: 60
+    timeout: 30
     events:
       - http:
           path: search
-          method: get    
+          method: get
 
 resources:
   Resources:
     DynamoTable:
       Type: AWS::DynamoDB::Table
-      Properties: 
+      Properties:
         TableName: ${self:app}-${self:provider.stage}-entries
-        AttributeDefinitions: 
+        AttributeDefinitions:
           - AttributeName: date
             AttributeType: N
         BillingMode: PAY_PER_REQUEST
-        KeySchema: 
+        KeySchema:
           - AttributeName: date
             KeyType: HASH
         PointInTimeRecoverySpecification:
           PointInTimeRecoveryEnabled: true
-        SSESpecification: 
+        SSESpecification:
           SSEEnabled: true
           SSEType: KMS
         StreamSpecification:
           StreamViewType: NEW_IMAGE
-        Tags: 
+        Tags:
           - Key: APP
             Value: ${self:provider.stackTags.APP}

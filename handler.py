@@ -292,7 +292,19 @@ def syncEntriesToSearchIndex(event, context):
 
     #unexpected, but could happen if aren't updating/creating a dynamodb item. Could be a deletion...
     if 'NewImage' not in event['Records'][0]['dynamodb']:
-        raise Exception("NewImage data not in event payload. Event Name: " + event['Records'][0]['eventName'])
+        if event['Records'][0]['eventName'] == "REMOVE":
+            print("Removing item: " + dateKey)
+
+            algoliaIndex.delete_object(dateKey)
+
+            return True
+        else:
+            raise Exception("NewImage data not in event payload. Unable to process event. Event Name: " + event['Records'][0]['eventName'])
+
+    if 'entries' not in event['Records'][0]['dynamodb']['NewImage']:
+        print("No Entries found...")
+
+        return True
 
     entries = []
     for entry in event['Records'][0]['dynamodb']['NewImage']['entries']['L']:
