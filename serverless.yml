@@ -16,21 +16,11 @@ custom:
           - protocol: email
             endpoint: noreply@snyderitis.com
     definitions:
-      functionInvocations:
-        namespace: AWS/Lambda
-        metric: Invocations
-        threshold: 10
-        statistic: Sum
-        period: 86400
-        evaluationPeriods: 1
-        datapointsToAlarm: 1
-        comparisonOperator: GreaterThanOrEqualToThreshold
-        treatMissingData: notBreaching
       functionErrors:
         namespace: AWS/Lambda
         metric: Errors
         threshold: 1
-        statistic: Sum
+        statistic: SampleCount
         period: 60
         evaluationPeriods: 1
         datapointsToAlarm: 1
@@ -86,6 +76,17 @@ functions:
     description: Send a request for a journal entry
     memorySize: 128
     timeout: 30
+    alarms:
+      - name: 'RequestEntryInvocationAlarm'
+        namespace: 'AWS/Lambda'
+        metric: Invocations
+        threshold: 5
+        statistic: SampleCount
+        period: 86400
+        evaluationPeriods: 1
+        datapointsToAlarm: 1
+        comparisonOperator: GreaterThanOrEqualToThreshold
+        treatMissingData: notBreaching
     events:
       - http:
           path: request
@@ -101,6 +102,17 @@ functions:
     description: Receive and process the incoming journal entry
     memorySize: 128
     timeout: 30
+    alarms:
+      - name: 'ReeiveEntryInvocationAlarm'
+        namespace: 'AWS/Lambda'
+        metric: Invocations
+        threshold: 20
+        statistic: SampleCount
+        period: 86400
+        evaluationPeriods: 1
+        datapointsToAlarm: 1
+        comparisonOperator: GreaterThanOrEqualToThreshold
+        treatMissingData: notBreaching
     events:
       - http:
           path: receive
@@ -111,6 +123,17 @@ functions:
     description: Browse the existing entries by year
     memorySize: 256
     timeout: 30
+    alarms:
+      - name: 'BrowseEntriesInvocationAlarm'
+        namespace: 'AWS/Lambda'
+        metric: Invocations
+        threshold: 10
+        statistic: SampleCount
+        period: 86400
+        evaluationPeriods: 1
+        datapointsToAlarm: 1
+        comparisonOperator: GreaterThanOrEqualToThreshold
+        treatMissingData: notBreaching
     events:
       - http:
           path: browse
@@ -133,6 +156,17 @@ functions:
     description: Sync the dynamodb item update to the search index
     memorySize: 128
     timeout: 60
+    alarms:
+      - name: 'SyncEntriesInvocationAlarm'
+        namespace: 'AWS/Lambda'
+        metric: Invocations
+        threshold: 100
+        statistic: SampleCount
+        period: 86400
+        evaluationPeriods: 1
+        datapointsToAlarm: 1
+        comparisonOperator: GreaterThanOrEqualToThreshold
+        treatMissingData: notBreaching
     events:
       - stream:
           type: dynamodb
@@ -143,6 +177,17 @@ functions:
     description: Search through journal entries
     memorySize: 256
     timeout: 30
+    alarms:
+      - name: 'SearchEntriesInvocationAlarm'
+        namespace: 'AWS/Lambda'
+        metric: Invocations
+        threshold: 100
+        statistic: SampleCount
+        period: 86400
+        evaluationPeriods: 1
+        datapointsToAlarm: 1
+        comparisonOperator: GreaterThanOrEqualToThreshold
+        treatMissingData: notBreaching
     events:
       - http:
           path: search
