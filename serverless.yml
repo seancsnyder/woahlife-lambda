@@ -1,5 +1,4 @@
 service: woahlife
-app: woahlife
 org: seancsnyder
 plugins:
   - serverless-pseudo-parameters
@@ -11,7 +10,7 @@ custom:
   alerts:
     topics:
       alarm:
-        topic: ${self:app}-${self:provider.stage}-alarm
+        topic: ${self:service}-${self:provider.stage}-alarm
         notifications:
           - protocol: email
             endpoint: noreply@snyderitis.com
@@ -20,7 +19,7 @@ custom:
         namespace: AWS/Lambda
         metric: Errors
         threshold: 1
-        statistic: SampleCount
+        statistic: Sum
         period: 60
         evaluationPeriods: 1
         datapointsToAlarm: 1
@@ -42,8 +41,8 @@ provider:
         - logs:CreateLogStream
         - logs:PutLogEvents
       Resource:
-        - !Sub arn:aws:logs:#{AWS::Region}:#{AWS::AccountId}:log-group:/aws/lambda/${self:app}-${self:provider.stage}-*
-        - !Sub arn:aws:logs:#{AWS::Region}:#{AWS::AccountId}:log-group:/aws/api-gateway/${self:app}-${self:provider.stage}*
+        - !Sub arn:aws:logs:#{AWS::Region}:#{AWS::AccountId}:log-group:/aws/lambda/${self:service}-${self:provider.stage}-*
+        - !Sub arn:aws:logs:#{AWS::Region}:#{AWS::AccountId}:log-group:/aws/api-gateway/${self:service}-${self:provider.stage}*
         - !Sub arn:aws:logs:#{AWS::Region}:#{AWS::AccountId}:log-group:/aws/apigateway/welcome*
         - !Sub arn:aws:logs:#{AWS::Region}:#{AWS::AccountId}:log-group:API-Gateway-Execution-Logs*
     - Effect: Allow
@@ -67,12 +66,12 @@ provider:
     apiGateway: true
     lambda: true
   stackTags:
-    APP: woahlife
+    app: ${self:service}
 
 functions:
   RequestEntry:
     handler: handler.requestEntry
-    name: ${self:app}-${self:provider.stage}-request-new-journal-entry
+    name: ${self:service}-${self:provider.stage}-request-new-journal-entry
     description: Send a request for a journal entry
     memorySize: 128
     timeout: 30
@@ -81,7 +80,7 @@ functions:
         namespace: 'AWS/Lambda'
         metric: Invocations
         threshold: 5
-        statistic: SampleCount
+        statistic: Sum
         period: 86400
         evaluationPeriods: 1
         datapointsToAlarm: 1
@@ -94,11 +93,11 @@ functions:
       - schedule:
           name: ${self:provider.stage}-woahlife-request-journal-entry-schedule
           description: Trigger the lambda to send the email requesting a journal entry
-          rate: cron(0 2,14 * * ? *)
+          rate: cron(0 14 * * ? *)
           enabled: true
   ReceiveEntry:
     handler: handler.receiveEntry
-    name: ${self:app}-${self:provider.stage}-receive-incoming-journal-entry
+    name: ${self:service}-${self:provider.stage}-receive-incoming-journal-entry
     description: Receive and process the incoming journal entry
     memorySize: 128
     timeout: 30
@@ -107,7 +106,7 @@ functions:
         namespace: 'AWS/Lambda'
         metric: Invocations
         threshold: 20
-        statistic: SampleCount
+        statistic: Sum
         period: 86400
         evaluationPeriods: 1
         datapointsToAlarm: 1
@@ -119,7 +118,7 @@ functions:
           method: post
   BrowseEntries:
     handler: handler.browseEntries
-    name: ${self:app}-${self:provider.stage}-browse-existing-journal-entries
+    name: ${self:service}-${self:provider.stage}-browse-existing-journal-entries
     description: Browse the existing entries by year
     memorySize: 256
     timeout: 30
@@ -128,7 +127,7 @@ functions:
         namespace: 'AWS/Lambda'
         metric: Invocations
         threshold: 10
-        statistic: SampleCount
+        statistic: Sum
         period: 86400
         evaluationPeriods: 1
         datapointsToAlarm: 1
@@ -140,19 +139,19 @@ functions:
           method: post
   CleanupEntries:
     handler: handler.cleanupEntries
-    name: ${self:app}-${self:provider.stage}-cleanup-existing-journal-entries
+    name: ${self:service}-${self:provider.stage}-cleanup-existing-journal-entries
     description: Cleanup the existing entries
     memorySize: 256
     timeout: 300
   RebuildSearchIndex:
     handler: handler.rebuildSearchIndex
-    name: ${self:app}-${self:provider.stage}-rebuild-search-index-journal-entries
+    name: ${self:service}-${self:provider.stage}-rebuild-search-index-journal-entries
     description: Rebuild the search indexes
     memorySize: 256
     timeout: 300
   SyncEntriesToSearchIndex:
     handler: handler.syncEntriesToSearchIndex
-    name: ${self:app}-${self:provider.stage}-sync-search-index-journal-entry
+    name: ${self:service}-${self:provider.stage}-sync-search-index-journal-entry
     description: Sync the dynamodb item update to the search index
     memorySize: 128
     timeout: 60
@@ -161,7 +160,7 @@ functions:
         namespace: 'AWS/Lambda'
         metric: Invocations
         threshold: 100
-        statistic: SampleCount
+        statistic: Sum
         period: 86400
         evaluationPeriods: 1
         datapointsToAlarm: 1
@@ -173,7 +172,7 @@ functions:
           arn: !GetAtt DynamoTable.StreamArn
   SearchEntries:
     handler: handler.searchEntries
-    name: ${self:app}-${self:provider.stage}-search-journal-entries
+    name: ${self:service}-${self:provider.stage}-search-journal-entries
     description: Search through journal entries
     memorySize: 256
     timeout: 30
@@ -182,7 +181,7 @@ functions:
         namespace: 'AWS/Lambda'
         metric: Invocations
         threshold: 100
-        statistic: SampleCount
+        statistic: Sum
         period: 86400
         evaluationPeriods: 1
         datapointsToAlarm: 1
@@ -198,7 +197,7 @@ resources:
     DynamoTable:
       Type: AWS::DynamoDB::Table
       Properties:
-        TableName: ${self:app}-${self:provider.stage}-entries
+        TableName: ${self:service}-${self:provider.stage}-entries
         AttributeDefinitions:
           - AttributeName: date
             AttributeType: N
@@ -215,4 +214,4 @@ resources:
           StreamViewType: NEW_IMAGE
         Tags:
           - Key: APP
-            Value: ${self:provider.stackTags.APP}
+            Value: ${self:provider.stackTags.app}
