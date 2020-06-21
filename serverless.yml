@@ -93,7 +93,7 @@ functions:
       - schedule:
           name: ${self:provider.stage}-woahlife-request-journal-entry-schedule
           description: Trigger the lambda to send the email requesting a journal entry
-          rate: cron(0 14 * * ? *)
+          rate: cron(0 2 * * ? *)
           enabled: true
   ReceiveEntry:
     handler: handler.receiveEntry
