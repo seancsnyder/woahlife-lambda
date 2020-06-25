@@ -3,283 +3,105 @@ import sys;
 sys.path.insert(0, "./venv/lib/python3.8/site-packages")
 
 from botocore.exceptions import ClientError
-import requests
 import boto3
-import time
-import datetime
-import dateutil.tz
 import json
 import os
-from urllib.parse import unquote
 from algoliasearch.search_client import SearchClient
 
-def requestEntry(event, context):
-    emailAddress = os.environ['TO_EMAIL_ADDRESS']
 
-    pacific = dateutil.tz.gettz('US/Pacific')
-    pacificDate = datetime.datetime.now(tz=pacific)
+def createEntry(event, context):
 
-    prompt = "Forecast" if int(pacificDate.strftime("%H")) < 12 else "Reflect"
-
-    subjectDateKey = pacificDate.strftime("%Y%m%d")
-    subject = pacificDate.strftime("%a %b %d, %Y")
-    subject += " - " + prompt
-    subject += " - " + pacificDate.strftime("%Y%m%d")
-
-    body = "Hey, how's it going?"
-
-    try:
-        requests.post(
-            "https://api.mailgun.net/v3/woahlife.com/messages",
-            auth=("api", os.environ['MAILGUN_API_KEY']),
-            data={
-                "from": "Woahlife <post@woahlife.com>",
-                "to": ["sean@snyderitis.com"],
-                "subject": subject,
-                "text": body
-            }
-        )
-    except Exception as e:
-        print(str(e))
-
-        raise e
-    else:
-        print("Sent: journal entry (" + subject + ") to " + emailAddress)
-
-        return {
-            'statusCode': 200,
-            'body': "OK"
-        }
-
-
-def receiveEntry(event, context):
     dynamodb = boto3.resource('dynamodb')
-
     table = dynamodb.Table(os.environ['DYANMODB_TABLE'])
 
-    mailgunPostBody = {}
-    for item in event['body'].split("&"):
-        keyValue = item.split("=");
-        mailgunPostBody[keyValue[0]] = unquote(keyValue[1])
+    jsonBody = json.loads(event['body'])
 
-    response = requests.get(
-        mailgunPostBody['message-url'],
-        auth=("api", os.environ['MAILGUN_API_KEY']))
+    print("Received journal entry for: " + jsonBody['date'])
 
-    message = response.json()
-
-    body = message['stripped-text']
-    subject = message['subject']
-
-    #Assume we'll use today's date, unless the subject line had the dateKey
-    pacific = dateutil.tz.gettz('US/Pacific')
-    pacificDate = datetime.datetime.now(tz=pacific)
-    todayDate = pacificDate.strftime("%Y%m%d")
-    dateKey = int(todayDate)
-
-    #Parse the last 8 digits off the subject.
-    if len(subject) >= 8:
-        print("date found on subject line")
-
-        subjectDate = subject[len(subject)-8:len(subject)]
-
-        if subjectDate.isdigit():
-            dateKey = int(subjectDate)
-
-    print("Received journal entry for: " + str(dateKey))
+    entryKey = int(jsonBody['date'])
 
     try:
-        #Try to get an item by that dateKey
-        response = table.get_item(Key={'date': dateKey})
+        # Try to get an item by that entryDate
+        table.get_item(Key={'date': entryKey})
 
-        #Since we didn't throw, we need to append this message to the
-        #existing item list.
+        # Since we didn't throw, we need to append this message to the
+        # existing item list.
         table.update_item(
-            Key={'date': dateKey},
+            Key={'date': entryKey},
             UpdateExpression='SET entries = list_append(entries, :msg)',
             ExpressionAttributeValues={
-                ':msg': [body]
+                ':msg': [jsonBody['text']]
             }
         )
 
         print("Updated existing dynamodb item entry")
+
     except Exception as e:
-        #If we threw here, the item didn't exist, so create a new item
+        # If we threw here, the item didn't exist, so create a new item
         table.put_item(
            Item={
-                'date': dateKey,
-                'entries': [body]
+                'date': entryKey,
+                'entries': [jsonBody['text']]
             }
         )
 
         print("Writing new dynamodb item entry")
+
     return {
         'statusCode': 200,
-        'body': "OK"
+        'body': json.dumps({'success': True})
     }
 
+def getEntry(event, context):
 
-
-def browseEntries(event, context):
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(os.environ['DYANMODB_TABLE'])
 
-    foundEntries = 0
+    entryDate = int(event['pathParameters']['date'])
 
-    mailgunPostBody = {}
-    for item in event['body'].split("&"):
-        keyValue = item.split("=");
-        mailgunPostBody[keyValue[0]] = unquote(keyValue[1])
+    entry = table.get_item(Key={'date': entryDate})
 
-    response = requests.get(
-        mailgunPostBody['message-url'],
-        auth=("api", os.environ['MAILGUN_API_KEY']))
-
-    message = response.json()
-
-    requestSubject = message['subject']
-
-    #Assume we'll use today's year, unless the subject line had the year
-    pacific = dateutil.tz.gettz('US/Pacific')
-    pacificDate = datetime.datetime.now(tz=pacific)
-    currentYear = int(pacificDate.strftime("%Y"))
-    currentMonth = int(pacificDate.strftime("%m"))
-    currentDay = int(pacificDate.strftime("%d"))
-
-    #Default to current year of entries
-    dateCursor = datetime.datetime(currentYear, 1, 1)
-    endDate = datetime.datetime(currentYear, 12, 31)
-
-    #hardcode some subjects that can shortcut to time periods
-    if requestSubject.lower() == "week":
-        dateCursor = datetime.datetime(currentYear, currentMonth, currentDay)
-
-        lastSevenDaysStep = datetime.timedelta(days=7)
-        dateCursor = dateCursor - lastSevenDaysStep
-
-        endDate = datetime.datetime(currentYear, currentMonth, currentDay)
-
-        print("Attempting to browse journal entries for the last 7 days")
-
-        responseSubject = "Woahlife Entries - Last 7 Days"
-    elif requestSubject == "month":
-        dateCursor = datetime.datetime(currentYear, currentMonth, currentDay)
-
-        lastThirtyDaysStep = datetime.timedelta(days=31)
-        dateCursor = dateCursor - lastThirtyDaysStep
-
-        endDate = datetime.datetime(currentYear, currentMonth, currentDay)
-
-        print("Attempting to browse journal entries for the last 31 days")
-
-        responseSubject = "Woahlife Entries - Last 31 Days"
-    elif len(requestSubject) >= 4:
-        #Parse the last 4 digits off the subject. It'll be the year
-        subjectDate = requestSubject[len(requestSubject)-4:len(requestSubject)]
-
-        if subjectDate.isdigit():
-            browseYear = int(subjectDate)
-
-            dateCursor = datetime.datetime(browseYear, 1, 1)
-
-        print("Attempting to browse journal entries for year: " + str(browseYear))
-
-        responseSubject = "Woahlife Entries " + str(browseYear)
-
-
-    dateCursorStep = datetime.timedelta(days=1)
-
-    responseBody = "Here are your entries:\n\n";
-
-    while dateCursor <= endDate:
-        currentDate = dateCursor.strftime('%Y-%m-%d')
-        dateKey = int(dateCursor.strftime('%Y%m%d'))
-
-        # Try to get an item by that dateKey
-        response = table.get_item(Key={'date': dateKey})
-
-        if 'Item' in response.keys():
-            foundEntries +=1
-
-            entryDate = str(response['Item']['date'])
-
-            responseBody += entryDate[0:4] + "-" + entryDate[4:6] + "-" + entryDate[6:8] + "\n"
-
-            for entry in response['Item']['entries']:
-                responseBody += entry + "\n\n"
-
-        dateCursor += dateCursorStep
-
-    print("Found: " + str(foundEntries) + " journal entries")
-
-    try:
-        requests.post(
-            "https://api.mailgun.net/v3/woahlife.com/messages",
-            auth=("api", os.environ['MAILGUN_API_KEY']),
-            data={
-                "from": "Woahlife <post@woahlife.com>",
-                "to": [os.environ['TO_EMAIL_ADDRESS']],
-                "subject": responseSubject,
-                "text": responseBody
-            }
-        )
-    except Exception as e:
-        print(e.response['Error']['Message'])
-
-        raise e
-    else:
+    if 'Item' in entry:
         return {
             'statusCode': 200,
-            'body': "OK"
-        }
-
-def cleanupEntries(event, context):
-    dynamodb = boto3.resource('dynamodb')
-    table = dynamodb.Table(os.environ['DYANMODB_TABLE'])
-
-    pacific = dateutil.tz.gettz('US/Pacific')
-    pacificDate = datetime.datetime.now(tz=pacific)
-    currentYear = int(pacificDate.strftime("%Y"))
-    currentMonth = int(pacificDate.strftime("%m"))
-    currentDay = int(pacificDate.strftime("%d"))
-
-    dateCursor = datetime.datetime(2005, 1, 1)
-    endDate = datetime.datetime(currentYear, currentMonth, currentDay)
-
-    dateCursorStep = datetime.timedelta(days=1)
-
-    while dateCursor <= endDate:
-        dateKey = int(dateCursor.strftime('%Y%m%d'))
-
-        # Try to get an item by that dateKey
-        response = table.get_item(Key={'date': dateKey})
-
-        if 'Item' in response.keys():
-            entries = response['Item']['entries']
-
-            for key, entry in enumerate(response['Item']['entries']):
-                cleanedEntry = entry
-
-                cleanedEntry = cleanedEntry.replace("=E2=80=99", "'")
-                cleanedEntry = cleanedEntry.replace("= ", "")
-
-                entries[key] = cleanedEntry
-
-            table.update_item(
-                Key={'date': dateKey},
-                UpdateExpression='SET entries = :entries',
-                ExpressionAttributeValues={
-                    ':entries': entries
+            'body': json.dumps(
+                {
+                    'date': int(entry['Item']['date']),
+                    'entries': entry['Item']['entries']
                 }
             )
+        }
+    else:
+        return {
+            'statusCode': 404,
+            'body': '{}'
+        }
 
-            print("Cleaned up: " + str(dateKey))
+def searchEntries(event, context):
 
-        dateCursor += dateCursorStep
+    algoliaClient = SearchClient.create(os.environ['ALGOLIA_APP_ID'], os.environ['ALGOLIA_APP_KEY'])
+    algoliaIndex = algoliaClient.init_index(os.environ['ALGOLIA_INDEX_NAME'])
 
-    return True
+    requestSubject = event['queryStringParameters']['query']
+
+    results = algoliaIndex.search(
+        requestSubject,
+        {
+            'attributesToRetrieve': [
+                'prettyDate',
+                'entries'
+            ],
+            'hitsPerPage': 100
+        }
+    )
+
+    return {
+        'statusCode': 200,
+        'body': json.dumps(results)
+    }
 
 def syncEntriesToSearchIndex(event, context):
+
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(os.environ['DYANMODB_TABLE'])
 
@@ -325,111 +147,3 @@ def syncEntriesToSearchIndex(event, context):
     res = algoliaIndex.save_objects([body])
 
     return True
-
-def rebuildSearchIndex(event, context):
-    dynamodb = boto3.resource('dynamodb')
-    table = dynamodb.Table(os.environ['DYANMODB_TABLE'])
-
-    credentials = boto3.Session().get_credentials()
-
-    algoliaClient = SearchClient.create(os.environ['ALGOLIA_APP_ID'], os.environ['ALGOLIA_APP_KEY'])
-    algoliaIndex = algoliaClient.init_index(os.environ['ALGOLIA_INDEX_NAME'])
-
-    pacific = dateutil.tz.gettz('US/Pacific')
-    pacificDate = datetime.datetime.now(tz=pacific)
-    currentYear = int(pacificDate.strftime("%Y"))
-    currentMonth = int(pacificDate.strftime("%m"))
-    currentDay = int(pacificDate.strftime("%d"))
-
-    dateCursor = datetime.datetime(2005, 1, 1)
-    endDate = datetime.datetime(currentYear, currentMonth, currentDay)
-
-    dateCursorStep = datetime.timedelta(days=1)
-
-    while dateCursor <= endDate:
-        dateKey = int(dateCursor.strftime('%Y%m%d'))
-        prettyDate = dateCursor.strftime('%A %B %d %Y')
-        timestamp = time.mktime(dateCursor.timetuple())
-
-        # Try to get an item by that dateKey
-        response = table.get_item(Key={'date': dateKey})
-
-        if 'Item' in response.keys():
-
-            # Add other things we wanna search on...
-            body = {
-                "objectID": str(dateKey),
-                "date": timestamp,
-                "prettyDate": prettyDate,
-                "entries": response['Item']['entries']
-            }
-
-            res = algoliaIndex.save_objects([body])
-
-            print("rebuilt index for entry: " + str(dateKey))
-
-        dateCursor += dateCursorStep
-
-    return True
-
-def searchEntries(event, context):
-
-    algoliaClient = SearchClient.create(os.environ['ALGOLIA_APP_ID'], os.environ['ALGOLIA_APP_KEY'])
-    algoliaIndex = algoliaClient.init_index(os.environ['ALGOLIA_INDEX_NAME'])
-
-    #mailgunPostBody = {}
-    #for item in event['body'].split("&"):
-    #    keyValue = item.split("=");
-    #    mailgunPostBody[keyValue[0]] = unquote(keyValue[1])
-
-    #response = requests.get(
-    #    mailgunPostBody['message-url'],
-    #    auth=("api", os.environ['MAILGUN_API_KEY']))
-
-    #message = response.json()
-
-    requestSubject = 'bunny'
-
-    results = algoliaIndex.search(
-        requestSubject,
-        {
-            'attributesToRetrieve': [
-                'prettyDate',
-                'entries'
-            ],
-            'hitsPerPage': 100
-        }
-    )
-
-    responseBody = "Found " + str(min(results['nbHits'], results['hitsPerPage'])) + " matching entries.\n\n"
-
-    for key, result in enumerate(results['hits']):
-        responseBody += result['prettyDate'] + "\n"
-
-        for entry in result['entries']:
-            responseBody += entry + "\n"
-
-        responseBody += "\n"
-
-    responseSubject = "Woahlife Entries Search Results: " + requestSubject
-
-    try:
-        requests.post(
-            "https://api.mailgun.net/v3/woahlife.com/messages",
-            auth=("api", os.environ['MAILGUN_API_KEY']),
-            data={
-                "from": "Woahlife <post@woahlife.com>",
-                "to": [os.environ['TO_EMAIL_ADDRESS']],
-                "subject": responseSubject,
-                "text": responseBody
-            }
-        )
-    except Exception as e:
-        print(e.response['Error']['Message'])
-
-        raise e
-    else:
-        return {
-            'statusCode': 200,
-            'body': "OK"
-        }

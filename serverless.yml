@@ -4,6 +4,7 @@ plugins:
   - serverless-pseudo-parameters
   - serverless-plugin-aws-alerts
   - serverless-python-requirements
+  - serverless-domain-manager
 custom:
   pythonRequirements:
     dockerizePip: true
@@ -28,11 +29,17 @@ custom:
     alarms:
       - functionInvocations
       - functionErrors
+  rootDomain: woahlife.com
+  customDomain:
+    domainName: api-${self:provider.stage}.${self:custom.rootDomain}
+    basePath: ''
+    stage: ${self:provider.stage}
+    createRoute53Record: true
 
 provider:
   name: aws
   runtime: python3.7
-  stage: ${opt:stage, 'prod'}
+  stage: ${opt:stage, 'dev'}
   region: us-west-2
   iamRoleStatements:
     - Effect: Allow
@@ -67,38 +74,22 @@ provider:
     lambda: true
   stackTags:
     app: ${self:service}
+  apiKeys:
+    - iosApp
+  usagePlan:
+    quota:
+      limit: 100
+      offset: 0
+      period: DAY
+    throttle:
+      burstLimit: 20
+      rateLimit: 10
 
 functions:
-  RequestEntry:
-    handler: handler.requestEntry
-    name: ${self:service}-${self:provider.stage}-request-new-journal-entry
-    description: Send a request for a journal entry
-    memorySize: 128
-    timeout: 30
-    alarms:
-      - name: 'RequestEntryInvocationAlarm'
-        namespace: 'AWS/Lambda'
-        metric: Invocations
-        threshold: 5
-        statistic: Sum
-        period: 86400
-        evaluationPeriods: 1
-        datapointsToAlarm: 1
-        comparisonOperator: GreaterThanOrEqualToThreshold
-        treatMissingData: notBreaching
-    events:
-      - http:
-          path: request
-          method: get
-      - schedule:
-          name: ${self:provider.stage}-woahlife-request-journal-entry-schedule
-          description: Trigger the lambda to send the email requesting a journal entry
-          rate: cron(0 2 * * ? *)
-          enabled: true
-  ReceiveEntry:
-    handler: handler.receiveEntry
-    name: ${self:service}-${self:provider.stage}-receive-incoming-journal-entry
-    description: Receive and process the incoming journal entry
+  CreateEntry:
+    handler: handler.createEntry
+    name: ${self:service}-${self:provider.stage}-create-journal-entry
+    description: Create and process an incoming journal entry
     memorySize: 128
     timeout: 30
     alarms:
@@ -114,12 +105,12 @@ functions:
         treatMissingData: notBreaching
     events:
       - http:
-          path: receive
+          path: create
           method: post
-  BrowseEntries:
-    handler: handler.browseEntries
-    name: ${self:service}-${self:provider.stage}-browse-existing-journal-entries
-    description: Browse the existing entries by year
+  GetEntry:
+    handler: handler.getEntry
+    name: ${self:service}-${self:provider.stage}-get-journal-entry
+    description: Get an existing entry by date
     memorySize: 256
     timeout: 30
     alarms:
@@ -135,20 +126,12 @@ functions:
         treatMissingData: notBreaching
     events:
       - http:
-          path: browse
-          method: post
-  CleanupEntries:
-    handler: handler.cleanupEntries
-    name: ${self:service}-${self:provider.stage}-cleanup-existing-journal-entries
-    description: Cleanup the existing entries
-    memorySize: 256
-    timeout: 300
-  RebuildSearchIndex:
-    handler: handler.rebuildSearchIndex
-    name: ${self:service}-${self:provider.stage}-rebuild-search-index-journal-entries
-    description: Rebuild the search indexes
-    memorySize: 256
-    timeout: 300
+          path: entry/{date}
+          method: get
+          request:
+            parameters:
+              querystrings:
+                date: true
   SyncEntriesToSearchIndex:
     handler: handler.syncEntriesToSearchIndex
     name: ${self:service}-${self:provider.stage}-sync-search-index-journal-entry
@@ -191,6 +174,10 @@ functions:
       - http:
           path: search
           method: get
+          request:
+            parameters:
+              querystrings:
+                query: true
 
 resources:
   Resources:

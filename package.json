@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "dependencies": {},
   "devDependencies": {
-    "serverless": "^1.50.0",
+    "serverless": "^1.73.1",
+    "serverless-domain-manager": "^4.1.1",
     "serverless-plugin-aws-alerts": "^1.4.0",
     "serverless-pseudo-parameters": "^2.5.0",
     "serverless-python-requirements": "^5.0.0"
