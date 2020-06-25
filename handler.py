@@ -6,6 +6,8 @@ from botocore.exceptions import ClientError
 import boto3
 import json
 import os
+import datetime
+import time
 from algoliasearch.search_client import SearchClient
 
 

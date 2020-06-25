@@ -62,10 +62,8 @@ provider:
         - !GetAtt DynamoTable.Arn
 
   environment:
-    TO_EMAIL_ADDRESS: sean@snyderitis.com
-    MAILGUN_API_KEY: ${ssm:/prod/woahlife/mailgunApiKey~true}
-    ALGOLIA_APP_ID: ${ssm:/prod/woahlife/algoliaAppId~true}
-    ALGOLIA_APP_KEY: ${ssm:/prod/woahlife/algoliaAppKey~true}
+    ALGOLIA_APP_ID: ${ssm:/${self:provider.stage}/woahlife/algoliaAppId~true}
+    ALGOLIA_APP_KEY: ${ssm:/${self:provider.stage}/woahlife/algoliaAppKey~true}
     ALGOLIA_INDEX_NAME: entries
     DYANMODB_TABLE: !Ref DynamoTable
   logRetentionInDays: 30
