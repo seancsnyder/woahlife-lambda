@@ -76,7 +76,7 @@ provider:
     - iosApp
   usagePlan:
     quota:
-      limit: 100
+      limit: 250
       offset: 0
       period: DAY
     throttle:
@@ -91,7 +91,7 @@ functions:
     memorySize: 128
     timeout: 30
     alarms:
-      - name: 'ReeiveEntryInvocationAlarm'
+      - name: 'CreateEntryInvocationAlarm'
         namespace: 'AWS/Lambda'
         metric: Invocations
         threshold: 20
@@ -110,13 +110,13 @@ functions:
     handler: handler.getEntry
     name: ${self:service}-${self:provider.stage}-get-journal-entry
     description: Get an existing entry by date
-    memorySize: 256
+    memorySize: 128
     timeout: 30
     alarms:
-      - name: 'BrowseEntriesInvocationAlarm'
+      - name: 'GetEntryInvocationAlarm'
         namespace: 'AWS/Lambda'
         metric: Invocations
-        threshold: 10
+        threshold: 100
         statistic: Sum
         period: 86400
         evaluationPeriods: 1
@@ -157,7 +157,7 @@ functions:
     handler: handler.searchEntries
     name: ${self:service}-${self:provider.stage}-search-journal-entries
     description: Search through journal entries
-    memorySize: 256
+    memorySize: 128
     timeout: 30
     alarms:
       - name: 'SearchEntriesInvocationAlarm'

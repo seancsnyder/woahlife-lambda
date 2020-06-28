@@ -9,10 +9,10 @@ import os
 import datetime
 import time
 from algoliasearch.search_client import SearchClient
+from functools import reduce
 
 
 def createEntry(event, context):
-
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(os.environ['DYANMODB_TABLE'])
 
@@ -55,43 +55,52 @@ def createEntry(event, context):
     }
 
 def getEntry(event, context):
-
-    dynamodb = boto3.resource('dynamodb')
-    table = dynamodb.Table(os.environ['DYANMODB_TABLE'])
-
     entryDate = int(event['pathParameters']['date'])
 
-    entry = table.get_item(Key={'date': entryDate})
+    print("getting entry for: " + str(entryDate))
 
-    if 'Item' in entry:
+    algoliaClient = SearchClient.create(os.environ['ALGOLIA_APP_ID'], os.environ['ALGOLIA_APP_KEY'])
+    algoliaIndex = algoliaClient.init_index(os.environ['ALGOLIA_INDEX_NAME'])
+
+    try:
+        entry = algoliaIndex.get_object(
+            entryDate,
+            {
+                'attributesToRetrieve': [
+                    'date',
+                    'entries',
+                    'objectID',
+                    'prettyDate'
+                ]
+            }
+        )
+
         return {
             'statusCode': 200,
-            'body': json.dumps(
-                {
-                    'date': int(entry['Item']['date']),
-                    'entries': entry['Item']['entries']
-                }
-            )
+            'body': json.dumps(entry)
         }
-    else:
+    except:
         return {
             'statusCode': 404,
             'body': '{}'
         }
 
 def searchEntries(event, context):
-
     algoliaClient = SearchClient.create(os.environ['ALGOLIA_APP_ID'], os.environ['ALGOLIA_APP_KEY'])
     algoliaIndex = algoliaClient.init_index(os.environ['ALGOLIA_INDEX_NAME'])
 
-    requestSubject = event['queryStringParameters']['query']
+    query = event['queryStringParameters']['query']
+
+    print("searching for: " + query)
 
     results = algoliaIndex.search(
-        requestSubject,
+        query,
         {
             'attributesToRetrieve': [
-                'prettyDate',
-                'entries'
+                'date',
+                'entries',
+                'objectID',
+                'prettyDate'
             ],
             'hitsPerPage': 100
         }
@@ -103,16 +112,14 @@ def searchEntries(event, context):
     }
 
 def syncEntriesToSearchIndex(event, context):
-
-    dynamodb = boto3.resource('dynamodb')
-    table = dynamodb.Table(os.environ['DYANMODB_TABLE'])
-
     algoliaClient = SearchClient.create(os.environ['ALGOLIA_APP_ID'], os.environ['ALGOLIA_APP_KEY'])
     algoliaIndex = algoliaClient.init_index(os.environ['ALGOLIA_INDEX_NAME'])
 
     dateKey = str(event['Records'][0]['dynamodb']['Keys']['date']['N'])
 
     print("syncing entries to search index for: " + dateKey)
+
+    print(event)
 
     #unexpected, but could happen if aren't updating/creating a dynamodb item. Could be a deletion...
     if 'NewImage' not in event['Records'][0]['dynamodb']:
@@ -146,6 +153,11 @@ def syncEntriesToSearchIndex(event, context):
         "entries": entries
     }
 
-    res = algoliaIndex.save_objects([body])
+    print(body)
+
+    if len(str(body)) > 10000:
+        print("[ERROR] Unable to sync, records in Algolia will be too big")
+    else:
+        algoliaIndex.save_objects([body])
 
     return True
