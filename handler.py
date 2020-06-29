@@ -41,7 +41,7 @@ def createEntry(event, context):
     except Exception as e:
         # If we threw here, the item didn't exist, so create a new item
         table.put_item(
-           Item={
+            Item={
                 'date': entryKey,
                 'entries': [jsonBody['text']]
             }
@@ -53,6 +53,7 @@ def createEntry(event, context):
         'statusCode': 200,
         'body': json.dumps({'success': True})
     }
+
 
 def getEntry(event, context):
     entryDate = int(event['pathParameters']['date'])
@@ -85,6 +86,7 @@ def getEntry(event, context):
             'body': '{}'
         }
 
+
 def searchEntries(event, context):
     algoliaClient = SearchClient.create(os.environ['ALGOLIA_APP_ID'], os.environ['ALGOLIA_APP_KEY'])
     algoliaIndex = algoliaClient.init_index(os.environ['ALGOLIA_INDEX_NAME'])
@@ -111,6 +113,7 @@ def searchEntries(event, context):
         'body': json.dumps(results)
     }
 
+
 def syncEntriesToSearchIndex(event, context):
     algoliaClient = SearchClient.create(os.environ['ALGOLIA_APP_ID'], os.environ['ALGOLIA_APP_KEY'])
     algoliaIndex = algoliaClient.init_index(os.environ['ALGOLIA_INDEX_NAME'])
@@ -121,7 +124,7 @@ def syncEntriesToSearchIndex(event, context):
 
     print(event)
 
-    #unexpected, but could happen if aren't updating/creating a dynamodb item. Could be a deletion...
+    # unexpected, but could happen if aren't updating/creating a dynamodb item. Could be a deletion...
     if 'NewImage' not in event['Records'][0]['dynamodb']:
         if event['Records'][0]['eventName'] == "REMOVE":
             print("Removing item: " + dateKey)
@@ -130,7 +133,9 @@ def syncEntriesToSearchIndex(event, context):
 
             return True
         else:
-            raise Exception("NewImage data not in event payload. Unable to process event. Event Name: " + event['Records'][0]['eventName'])
+            raise Exception(
+                "NewImage data not in event payload. Unable to process event. Event Name: " + event['Records'][0][
+                    'eventName'])
 
     if 'entries' not in event['Records'][0]['dynamodb']['NewImage']:
         print("No Entries found...")

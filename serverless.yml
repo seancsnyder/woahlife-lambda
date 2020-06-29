@@ -73,15 +73,17 @@ provider:
   stackTags:
     app: ${self:service}
   apiKeys:
-    - iosApp
+    - iosApp:
+      - ${self:service}-iosApp-${self:provider.stage}
   usagePlan:
-    quota:
-      limit: 250
-      offset: 0
-      period: DAY
-    throttle:
-      burstLimit: 20
-      rateLimit: 10
+    - iosApp:
+      quota:
+        limit: 250
+        offset: 0
+        period: DAY
+      throttle:
+        burstLimit: 20
+        rateLimit: 10
 
 functions:
   CreateEntry:
