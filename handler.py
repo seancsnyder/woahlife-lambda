@@ -3,8 +3,7 @@ import json
 import os
 import datetime
 import time
-from algoliasearch.search_client import SearchClient
-
+import helper
 
 def create_entry(event, context):
     dynamodb = boto3.resource('dynamodb')
@@ -43,10 +42,7 @@ def create_entry(event, context):
 
         print("Writing new dynamodb item entry")
 
-    return {
-        'statusCode': 200,
-        'body': json.dumps({'success': True})
-    }
+    return helper.return_success_json({'success': True})
 
 
 def get_entry(event, context):
@@ -54,8 +50,7 @@ def get_entry(event, context):
 
     print("getting entry for: " + str(entry_date))
 
-    algolia_client = SearchClient.create(os.environ['ALGOLIA_APP_ID'], os.environ['ALGOLIA_APP_KEY'])
-    algolia_index = algolia_client.init_index(os.environ['ALGOLIA_INDEX_NAME'])
+    algolia_index = helper.get_algolia_client()
 
     try:
         entry = algolia_index.get_object(
@@ -70,20 +65,17 @@ def get_entry(event, context):
             }
         )
 
-        return {
-            'statusCode': 200,
-            'body': json.dumps(entry)
-        }
+        return helper.return_success_json(entry)
     except:
-        return {
-            'statusCode': 404,
-            'body': '{}'
-        }
+        return helper.return_404_json({})
 
 
 def search_entries(event, context):
-    algolia_client = SearchClient.create(os.environ['ALGOLIA_APP_ID'], os.environ['ALGOLIA_APP_KEY'])
-    algolia_index = algolia_client.init_index(os.environ['ALGOLIA_INDEX_NAME'])
+    """
+    Function to search through the search index for a query
+    """
+
+    algolia_index = helper.get_algolia_client()
 
     query = event['queryStringParameters']['query']
 
@@ -102,15 +94,16 @@ def search_entries(event, context):
         }
     )
 
-    return {
-        'statusCode': 200,
-        'body': json.dumps(results)
-    }
+    return helper.return_success_json(results)
 
 
 def sync_entries_to_search_index(event, context):
-    algolia_client = SearchClient.create(os.environ['ALGOLIA_APP_ID'], os.environ['ALGOLIA_APP_KEY'])
-    algolia_index = algolia_client.init_index(os.environ['ALGOLIA_INDEX_NAME'])
+    """
+    Sync the dynamo db record to the search index.
+    Triggered by a DynamoDb trigger on create/update/delete
+    """
+
+    algolia_index = helper.get_algolia_client()
 
     dateKey = str(event['Records'][0]['dynamodb']['Keys']['date']['N'])
 
