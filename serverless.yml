@@ -87,7 +87,7 @@ provider:
 
 functions:
   CreateEntry:
-    handler: handler.createEntry
+    handler: handler.create_entry
     name: ${self:service}-${self:provider.stage}-create-journal-entry
     description: Create and process an incoming journal entry
     memorySize: 128
@@ -109,7 +109,7 @@ functions:
           method: post
           private: true
   GetEntry:
-    handler: handler.getEntry
+    handler: handler.get_entry
     name: ${self:service}-${self:provider.stage}-get-journal-entry
     description: Get an existing entry by date
     memorySize: 128
@@ -135,7 +135,7 @@ functions:
               querystrings:
                 date: true
   SyncEntriesToSearchIndex:
-    handler: handler.syncEntriesToSearchIndex
+    handler: handler.sync_entries_to_search_index
     name: ${self:service}-${self:provider.stage}-sync-search-index-journal-entry
     description: Sync the dynamodb item update to the search index
     memorySize: 128
@@ -156,7 +156,7 @@ functions:
           type: dynamodb
           arn: !GetAtt DynamoTable.StreamArn
   SearchEntries:
-    handler: handler.searchEntries
+    handler: handler.search_entries
     name: ${self:service}-${self:provider.stage}-search-journal-entries
     description: Search through journal entries
     memorySize: 128

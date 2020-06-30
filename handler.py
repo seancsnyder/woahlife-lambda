@@ -1,49 +1,43 @@
-import sys;
-
-sys.path.insert(0, "./venv/lib/python3.8/site-packages")
-
-from botocore.exceptions import ClientError
 import boto3
 import json
 import os
 import datetime
 import time
 from algoliasearch.search_client import SearchClient
-from functools import reduce
 
 
-def createEntry(event, context):
+def create_entry(event, context):
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(os.environ['DYANMODB_TABLE'])
 
-    jsonBody = json.loads(event['body'])
+    json_body = json.loads(event['body'])
 
-    print("Received journal entry for: " + jsonBody['date'])
+    print("Received journal entry for: " + json_body['date'])
 
-    entryKey = int(jsonBody['date'])
+    entry_key: int = int(json_body['date'])
 
     try:
         # Try to get an item by that entryDate
-        table.get_item(Key={'date': entryKey})
+        table.get_item(Key={'date': entry_key})
 
         # Since we didn't throw, we need to append this message to the
         # existing item list.
         table.update_item(
-            Key={'date': entryKey},
+            Key={'date': entry_key},
             UpdateExpression='SET entries = list_append(entries, :msg)',
             ExpressionAttributeValues={
-                ':msg': [jsonBody['text']]
+                ':msg': [json_body['text']]
             }
         )
 
         print("Updated existing dynamodb item entry")
 
-    except Exception as e:
+    except:
         # If we threw here, the item didn't exist, so create a new item
         table.put_item(
             Item={
-                'date': entryKey,
-                'entries': [jsonBody['text']]
+                'date': entry_key,
+                'entries': [json_body['text']]
             }
         )
 
@@ -55,17 +49,17 @@ def createEntry(event, context):
     }
 
 
-def getEntry(event, context):
-    entryDate = int(event['pathParameters']['date'])
+def get_entry(event, context):
+    entry_date = int(event['pathParameters']['date'])
 
-    print("getting entry for: " + str(entryDate))
+    print("getting entry for: " + str(entry_date))
 
-    algoliaClient = SearchClient.create(os.environ['ALGOLIA_APP_ID'], os.environ['ALGOLIA_APP_KEY'])
-    algoliaIndex = algoliaClient.init_index(os.environ['ALGOLIA_INDEX_NAME'])
+    algolia_client = SearchClient.create(os.environ['ALGOLIA_APP_ID'], os.environ['ALGOLIA_APP_KEY'])
+    algolia_index = algolia_client.init_index(os.environ['ALGOLIA_INDEX_NAME'])
 
     try:
-        entry = algoliaIndex.get_object(
-            entryDate,
+        entry = algolia_index.get_object(
+            str(entry_date),
             {
                 'attributesToRetrieve': [
                     'date',
@@ -87,15 +81,15 @@ def getEntry(event, context):
         }
 
 
-def searchEntries(event, context):
-    algoliaClient = SearchClient.create(os.environ['ALGOLIA_APP_ID'], os.environ['ALGOLIA_APP_KEY'])
-    algoliaIndex = algoliaClient.init_index(os.environ['ALGOLIA_INDEX_NAME'])
+def search_entries(event, context):
+    algolia_client = SearchClient.create(os.environ['ALGOLIA_APP_ID'], os.environ['ALGOLIA_APP_KEY'])
+    algolia_index = algolia_client.init_index(os.environ['ALGOLIA_INDEX_NAME'])
 
     query = event['queryStringParameters']['query']
 
     print("searching for: " + query)
 
-    results = algoliaIndex.search(
+    results = algolia_index.search(
         query,
         {
             'attributesToRetrieve': [
@@ -114,13 +108,13 @@ def searchEntries(event, context):
     }
 
 
-def syncEntriesToSearchIndex(event, context):
-    algoliaClient = SearchClient.create(os.environ['ALGOLIA_APP_ID'], os.environ['ALGOLIA_APP_KEY'])
-    algoliaIndex = algoliaClient.init_index(os.environ['ALGOLIA_INDEX_NAME'])
+def sync_entries_to_search_index(event, context):
+    algolia_client = SearchClient.create(os.environ['ALGOLIA_APP_ID'], os.environ['ALGOLIA_APP_KEY'])
+    algolia_index = algolia_client.init_index(os.environ['ALGOLIA_INDEX_NAME'])
 
     dateKey = str(event['Records'][0]['dynamodb']['Keys']['date']['N'])
 
-    print("syncing entries to search index for: " + dateKey)
+    print('syncing entries to search index for: ' + dateKey)
 
     print(event)
 
@@ -129,7 +123,7 @@ def syncEntriesToSearchIndex(event, context):
         if event['Records'][0]['eventName'] == "REMOVE":
             print("Removing item: " + dateKey)
 
-            algoliaIndex.delete_object(dateKey)
+            algolia_index.delete_object(dateKey)
 
             return True
         else:
@@ -148,13 +142,13 @@ def syncEntriesToSearchIndex(event, context):
 
     date = datetime.datetime(int(dateKey[0:4]), int(dateKey[4:6]), int(dateKey[6:8]))
 
-    prettyDate = date.strftime('%A %B %d %Y')
+    pretty_date = date.strftime('%A %B %d %Y')
     timestamp = time.mktime(date.timetuple())
 
     body = {
         "objectID": dateKey,
         "date": timestamp,
-        "prettyDate": prettyDate,
+        "prettyDate": pretty_date,
         "entries": entries
     }
 
@@ -163,6 +157,6 @@ def syncEntriesToSearchIndex(event, context):
     if len(str(body)) > 10000:
         print("[ERROR] Unable to sync, records in Algolia will be too big")
     else:
-        algoliaIndex.save_objects([body])
+        algolia_index.save_objects([body])
 
     return True
