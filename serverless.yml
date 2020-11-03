@@ -21,13 +21,12 @@ custom:
         metric: Errors
         threshold: 1
         statistic: Sum
-        period: 60
+        period: 3600
         evaluationPeriods: 1
         datapointsToAlarm: 1
         comparisonOperator: GreaterThanOrEqualToThreshold
         treatMissingData: notBreaching
     alarms:
-      - functionInvocations
       - functionErrors
   rootDomain: woahlife.com
   customDomain:
@@ -41,6 +40,8 @@ provider:
   runtime: python3.7
   stage: ${opt:stage, 'dev'}
   region: us-west-2
+  versionFunctions: false
+  deploymentBucket: snyderitis-serverless-deployments
   iamRoleStatements:
     - Effect: Allow
       Action:
@@ -77,13 +78,18 @@ provider:
       - ${self:service}-iosApp-${self:provider.stage}
   usagePlan:
     - iosApp:
-      quota:
-        limit: 250
-        offset: 0
-        period: DAY
-      throttle:
-        burstLimit: 20
-        rateLimit: 10
+        quota:
+          limit: 250
+          offset: 0
+          period: DAY
+        throttle:
+          burstLimit: 20
+          rateLimit: 10
+
+package:
+  exclude:
+    - node_modules/**
+    - .env/**
 
 functions:
   CreateEntry:

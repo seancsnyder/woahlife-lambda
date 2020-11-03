@@ -1,4 +1,4 @@
-import boto3
+import boto3.dynamodb
 import json
 import os
 import datetime
