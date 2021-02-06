@@ -5,6 +5,7 @@ import datetime
 import time
 import helper
 
+
 def create_entry(event, context):
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(os.environ['DYANMODB_TABLE'])
@@ -105,18 +106,18 @@ def sync_entries_to_search_index(event, context):
 
     algolia_index = helper.get_algolia_client()
 
-    dateKey = str(event['Records'][0]['dynamodb']['Keys']['date']['N'])
+    date_key = str(event['Records'][0]['dynamodb']['Keys']['date']['N'])
 
-    print('syncing entries to search index for: ' + dateKey)
+    print('syncing entries to search index for: ' + date_key)
 
     print(event)
 
     # unexpected, but could happen if aren't updating/creating a dynamodb item. Could be a deletion...
     if 'NewImage' not in event['Records'][0]['dynamodb']:
         if event['Records'][0]['eventName'] == "REMOVE":
-            print("Removing item: " + dateKey)
+            print("Removing item: " + date_key)
 
-            algolia_index.delete_object(dateKey)
+            algolia_index.delete_object(date_key)
 
             return True
         else:
@@ -133,13 +134,13 @@ def sync_entries_to_search_index(event, context):
     for entry in event['Records'][0]['dynamodb']['NewImage']['entries']['L']:
         entries.append(entry['S'])
 
-    date = datetime.datetime(int(dateKey[0:4]), int(dateKey[4:6]), int(dateKey[6:8]))
+    date = datetime.datetime(int(date_key[0:4]), int(date_key[4:6]), int(date_key[6:8]))
 
     pretty_date = date.strftime('%A %B %d %Y')
     timestamp = time.mktime(date.timetuple())
 
     body = {
-        "objectID": dateKey,
+        "objectID": date_key,
         "date": timestamp,
         "prettyDate": pretty_date,
         "entries": entries
