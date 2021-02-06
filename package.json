@@ -3,10 +3,10 @@
   "description": "Couple lambdas to build out the functionality of a woahlife journaling application",
   "version": "0.1.0",
   "dependencies": {
-    "serverless": "^2.10.0"
+    "serverless": "^2.22.0"
   },
   "devDependencies": {
-    "serverless-domain-manager": "^4.2.0",
+    "serverless-domain-manager": "^4.2.3",
     "serverless-plugin-aws-alerts": "^1.6.1",
     "serverless-pseudo-parameters": "^2.5.0",
     "serverless-python-requirements": "^5.1.0"
