@@ -15,19 +15,13 @@ custom:
         notifications:
           - protocol: email
             endpoint: noreply@snyderitis.com
+    dashboards: true
     definitions:
       functionErrors:
-        namespace: AWS/Lambda
-        metric: Errors
-        threshold: 1
-        statistic: Sum
         period: 3600
-        evaluationPeriods: 1
-        datapointsToAlarm: 1
-        comparisonOperator: GreaterThanOrEqualToThreshold
-        treatMissingData: notBreaching
     alarms:
       - functionErrors
+      - functionInvocations
   rootDomain: woahlife.com
   customDomain:
     domainName: api-${self:provider.stage}.${self:custom.rootDomain}
@@ -40,8 +34,10 @@ provider:
   runtime: python3.7
   stage: ${opt:stage, 'dev'}
   region: us-west-2
-  versionFunctions: false
+  versionFunctions: true
   deploymentBucket: snyderitis-serverless-deployments
+  apiGateway:
+    shouldStartNameWithService: true
   iamRoleStatements:
     - Effect: Allow
       Action:
@@ -99,16 +95,8 @@ functions:
     memorySize: 128
     timeout: 30
     alarms:
-      - name: 'CreateEntryInvocationAlarm'
-        namespace: 'AWS/Lambda'
-        metric: Invocations
-        threshold: 20
-        statistic: Sum
-        period: 86400
-        evaluationPeriods: 1
-        datapointsToAlarm: 1
-        comparisonOperator: GreaterThanOrEqualToThreshold
-        treatMissingData: notBreaching
+      - functionErrors
+      - functionInvocations
     events:
       - http:
           path: create
@@ -121,16 +109,8 @@ functions:
     memorySize: 128
     timeout: 30
     alarms:
-      - name: 'GetEntryInvocationAlarm'
-        namespace: 'AWS/Lambda'
-        metric: Invocations
-        threshold: 100
-        statistic: Sum
-        period: 86400
-        evaluationPeriods: 1
-        datapointsToAlarm: 1
-        comparisonOperator: GreaterThanOrEqualToThreshold
-        treatMissingData: notBreaching
+      - functionErrors
+      - functionInvocations
     events:
       - http:
           path: entry/{date}
@@ -147,16 +127,8 @@ functions:
     memorySize: 128
     timeout: 60
     alarms:
-      - name: 'SyncEntriesInvocationAlarm'
-        namespace: 'AWS/Lambda'
-        metric: Invocations
-        threshold: 100
-        statistic: Sum
-        period: 86400
-        evaluationPeriods: 1
-        datapointsToAlarm: 1
-        comparisonOperator: GreaterThanOrEqualToThreshold
-        treatMissingData: notBreaching
+      - functionErrors
+      - functionInvocations
     events:
       - stream:
           type: dynamodb
@@ -168,16 +140,8 @@ functions:
     memorySize: 128
     timeout: 30
     alarms:
-      - name: 'SearchEntriesInvocationAlarm'
-        namespace: 'AWS/Lambda'
-        metric: Invocations
-        threshold: 100
-        statistic: Sum
-        period: 86400
-        evaluationPeriods: 1
-        datapointsToAlarm: 1
-        comparisonOperator: GreaterThanOrEqualToThreshold
-        treatMissingData: notBreaching
+      - functionErrors
+      - functionInvocations
     events:
       - http:
           path: search
