@@ -94,6 +94,8 @@ functions:
     description: Create and process an incoming journal entry
     memorySize: 128
     timeout: 30
+    layers:
+      - arn:aws:lambda:us-west-2:580247275435:layer:LambdaInsightsExtension:14
     alarms:
       - functionErrors
       - functionInvocations
@@ -108,6 +110,8 @@ functions:
     description: Get an existing entry by date
     memorySize: 128
     timeout: 30
+    layers:
+      - arn:aws:lambda:us-west-2:580247275435:layer:LambdaInsightsExtension:14
     alarms:
       - functionErrors
       - functionInvocations
@@ -126,6 +130,8 @@ functions:
     description: Sync the dynamodb item update to the search index
     memorySize: 128
     timeout: 60
+    layers:
+      - arn:aws:lambda:us-west-2:580247275435:layer:LambdaInsightsExtension:14
     alarms:
       - functionErrors
       - functionInvocations
@@ -139,6 +145,8 @@ functions:
     description: Search through journal entries
     memorySize: 128
     timeout: 30
+    layers:
+      - arn:aws:lambda:us-west-2:580247275435:layer:LambdaInsightsExtension:14
     alarms:
       - functionErrors
       - functionInvocations
