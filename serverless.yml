@@ -1,10 +1,14 @@
 service: woahlife
 org: seancsnyder
+
+frameworkVersion: '3'
+configValidationMode: warn
+
 plugins:
-  - serverless-pseudo-parameters
   - serverless-plugin-aws-alerts
   - serverless-python-requirements
   - serverless-domain-manager
+
 custom:
   pythonRequirements:
     dockerizePip: true
@@ -35,32 +39,32 @@ provider:
   stage: ${opt:stage, 'dev'}
   region: us-west-2
   versionFunctions: true
-  deploymentBucket: snyderitis-serverless-deployments
-  apiGateway:
-    shouldStartNameWithService: true
-  iamRoleStatements:
-    - Effect: Allow
-      Action:
-        - logs:CreateLogGroup
-        - logs:CreateLogStream
-        - logs:PutLogEvents
-      Resource:
-        - !Sub arn:aws:logs:#{AWS::Region}:#{AWS::AccountId}:log-group:/aws/lambda/${self:service}-${self:provider.stage}-*
-        - !Sub arn:aws:logs:#{AWS::Region}:#{AWS::AccountId}:log-group:/aws/api-gateway/${self:service}-${self:provider.stage}*
-        - !Sub arn:aws:logs:#{AWS::Region}:#{AWS::AccountId}:log-group:/aws/apigateway/welcome*
-        - !Sub arn:aws:logs:#{AWS::Region}:#{AWS::AccountId}:log-group:API-Gateway-Execution-Logs*
-    - Effect: Allow
-      Action:
-        - dynamodb:PutItem
-        - dynamodb:GetItem
-        - dynamodb:UpdateItem
-        - dynamodb:Query
-      Resource:
-        - !GetAtt DynamoTable.Arn
-
+  deploymentBucket:
+    name: snyderitis-serverless-deployments
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+          Resource:
+            - !Sub arn:aws:logs:${aws:region}:${aws:accountId}:log-group:/aws/lambda/${self:service}-${self:provider.stage}-*
+            - !Sub arn:aws:logs:${aws:region}:${aws:accountId}:log-group:/aws/api-gateway/${self:service}-${self:provider.stage}*
+            - !Sub arn:aws:logs:${aws:region}:${aws:accountId}:log-group:/aws/apigateway/welcome*
+            - !Sub arn:aws:logs:${aws:region}:${aws:accountId}:log-group:API-Gateway-Execution-Logs*
+        - Effect: Allow
+          Action:
+            - dynamodb:PutItem
+            - dynamodb:GetItem
+            - dynamodb:UpdateItem
+            - dynamodb:Query
+          Resource:
+            - !GetAtt DynamoTable.Arn
   environment:
-    ALGOLIA_APP_ID: ${ssm:/${self:provider.stage}/woahlife/algoliaAppId~true}
-    ALGOLIA_APP_KEY: ${ssm:/${self:provider.stage}/woahlife/algoliaAppKey~true}
+    ALGOLIA_APP_ID: ${ssm:/${sls:stage}/woahlife/algoliaAppId}
+    ALGOLIA_APP_KEY: ${ssm:/${sls:stage}/woahlife/algoliaAppKey}
     ALGOLIA_INDEX_NAME: entries
     DYANMODB_TABLE: !Ref DynamoTable
   logRetentionInDays: 30
@@ -69,23 +73,25 @@ provider:
     lambda: true
   stackTags:
     app: ${self:service}
-  apiKeys:
-    - iosApp:
-      - ${self:service}-iosApp-${self:provider.stage}
-  usagePlan:
-    - iosApp:
-        quota:
-          limit: 250
-          offset: 0
-          period: DAY
-        throttle:
-          burstLimit: 20
-          rateLimit: 10
+  apiGateway:
+    shouldStartNameWithService: true
+    apiKeys:
+      - iosApp:
+        - ${self:service}-iosApp-${self:provider.stage}
+    usagePlan:
+      - iosApp:
+          quota:
+            limit: 250
+            offset: 0
+            period: DAY
+          throttle:
+            burstLimit: 20
+            rateLimit: 10
 
 package:
-  exclude:
-    - node_modules/**
-    - .env/**
+  patterns:
+    - '!node_modules/**'
+    - '!.env/**'
 
 functions:
   CreateEntry:
@@ -122,7 +128,7 @@ functions:
           private: true
           request:
             parameters:
-              querystrings:
+              paths:
                 date: true
   SyncEntriesToSearchIndex:
     handler: handler.sync_entries_to_search_index
