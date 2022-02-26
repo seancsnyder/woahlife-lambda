@@ -77,7 +77,7 @@ provider:
     shouldStartNameWithService: true
     apiKeys:
       - iosApp:
-        - ${self:service}-iosApp-${self:provider.stage}
+        - ${self:service}-iosApp-${self:provider.stage}-20220226
     usagePlan:
       - iosApp:
           quota:
