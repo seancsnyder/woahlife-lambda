@@ -175,11 +175,7 @@ def encrypt_unencrypted_entries(event, context):
 
     kms = boto3.client("kms")
 
-    scan_kwargs = {
-        # small limit just in case some entries are very large and we
-        # try to return too much from Dynamodb
-        "Limit": 5
-    }
+    scan_kwargs = {}
 
     done = False
     start_key = None
