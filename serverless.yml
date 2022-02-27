@@ -60,6 +60,7 @@ provider:
             - dynamodb:GetItem
             - dynamodb:UpdateItem
             - dynamodb:Query
+            - dynamodb:Scan
           Resource:
             - !GetAtt DynamoTable.Arn
         - Effect: Allow
@@ -191,7 +192,7 @@ functions:
 
   EncryptUnencryptedEntries:
     handler: handler.encrypt_unencrypted_entries
-    name: ${self:service}-${self:provider.stage}-encrypted-unencrypted-entries
+    name: ${self:service}-${self:provider.stage}-encrypt-unencrypted-entries
     description: Search through journal entries and encrypt anything that wasn't already encrypted
     memorySize: 128
     timeout: 600
@@ -202,7 +203,7 @@ functions:
       - functionInvocations
     environment:
       KMS_KEY_ARN: !GetAtt EncryptionKey.Arn
-
+      DYNAMODB_TABLE: !Ref DynamoTable
 
 resources:
   Resources:

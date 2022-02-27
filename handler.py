@@ -114,64 +114,57 @@ def sync_entries_to_search_index(event, context):
     Sync the dynamo db record to the search index.
     Triggered by a DynamoDb trigger on create/update/delete
     """
-
+    print(event)
     algolia_index = algolia_helper.get_algolia_client()
 
-    date_key = str(event['Records'][0]['dynamodb']['Keys']['date']['N'])
+    for record in event["Records"]:
+        date_key = str(record['dynamodb']['Keys']['date']['N'])
 
-    print('syncing entries to search index for: ' + date_key)
+        print('syncing entries to search index for: ' + date_key)
+        print(record)
 
-    print(event)
+        # unexpected, but could happen if aren't updating/creating a dynamodb item. Could be a deletion...
+        if 'NewImage' not in record['dynamodb']:
+            if record['eventName'] == "REMOVE":
+                print("Removing item: " + date_key)
 
-    # unexpected, but could happen if aren't updating/creating a dynamodb item. Could be a deletion...
-    if 'NewImage' not in event['Records'][0]['dynamodb']:
-        if event['Records'][0]['eventName'] == "REMOVE":
-            print("Removing item: " + date_key)
+                algolia_index.delete_object(date_key)
+            else:
+                raise Exception("NewImage data not in event payload. Unable to process event. Event Name: " + record['eventName'])
 
-            algolia_index.delete_object(date_key)
+        elif "NewImage" in record['dynamodb'] and 'entries' in record['dynamodb']['NewImage']:
+            kms = boto3.client("kms")
 
-            return True
+            entries = []
+            for entry in record['dynamodb']['NewImage']['entries']['L']:
+                if "S" in entry:
+                    entries.append(entry["S"])
+                elif "B" in entry:
+                    kms_response = kms.decrypt(
+                        KeyId=os.environ["KMS_KEY_ARN"],
+                        CiphertextBlob=base64.b64decode(entry['B'])
+                    )
+                    entries.append(kms_response["Plaintext"].decode('utf8'))
+
+            date = datetime.datetime(int(date_key[0:4]), int(date_key[4:6]), int(date_key[6:8]))
+
+            pretty_date = date.strftime('%A %B %d %Y')
+            timestamp = time.mktime(date.timetuple())
+
+            body = {
+                "objectID": date_key,
+                "date": timestamp,
+                "prettyDate": pretty_date,
+                "entries": entries
+            }
+
+            if len(str(body)) > 10000:
+                raise Exception("[ERROR] Unable to sync, records in Algolia will be too big")
+            else:
+                algolia_index.save_objects([body])
+
         else:
-            raise Exception(
-                "NewImage data not in event payload. Unable to process event. Event Name: " + event['Records'][0][
-                    'eventName'])
-
-    if 'entries' not in event['Records'][0]['dynamodb']['NewImage']:
-        print("No Entries found...")
-
-        return True
-
-    kms = boto3.client("kms")
-
-    entries = []
-    for entry in event['Records'][0]['dynamodb']['NewImage']['entries']['L']:
-        if "S" in entry:
-            entries.append(entry["S"])
-        elif "B" in entry:
-            kms_response = kms.decrypt(
-                KeyId=os.environ["KMS_KEY_ARN"],
-                CiphertextBlob=base64.b64decode(entry['B'])
-            )
-            entries.append(kms_response["Plaintext"].decode('utf8'))
-
-    date = datetime.datetime(int(date_key[0:4]), int(date_key[4:6]), int(date_key[6:8]))
-
-    pretty_date = date.strftime('%A %B %d %Y')
-    timestamp = time.mktime(date.timetuple())
-
-    body = {
-        "objectID": date_key,
-        "date": timestamp,
-        "prettyDate": pretty_date,
-        "entries": entries
-    }
-
-    print(body)
-
-    if len(str(body)) > 10000:
-        print("[ERROR] Unable to sync, records in Algolia will be too big")
-    else:
-        algolia_index.save_objects([body])
+            raise Exception("Unknown event...")
 
     return True
 
