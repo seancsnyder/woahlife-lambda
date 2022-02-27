@@ -1,20 +1,31 @@
-import boto3.dynamodb
+import base64
 import json
 import os
 import datetime
 import time
-import helper
+
+import boto3.dynamodb
+
+import algolia_helper
 
 
 def create_entry(event, context):
     dynamodb = boto3.resource('dynamodb')
-    table = dynamodb.Table(os.environ['DYANMODB_TABLE'])
+    table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
 
     json_body = json.loads(event['body'])
 
-    print("Received journal entry for: " + json_body['date'])
+    kms = boto3.client("kms")
+    encryption_response = kms.encrypt(
+        KeyId=os.environ["KMS_KEY_ARN"],
+        Plaintext=bytes(json_body['text'], encoding='utf8'),
+    )
 
     entry_key: int = int(json_body['date'])
+    entry_text: bytes = encryption_response["CiphertextBlob"]
+
+    print(entry_key)
+    print(entry_text)
 
     try:
         # Try to get an item by that entryDate
@@ -26,7 +37,7 @@ def create_entry(event, context):
             Key={'date': entry_key},
             UpdateExpression='SET entries = list_append(entries, :msg)',
             ExpressionAttributeValues={
-                ':msg': [json_body['text']]
+                ':msg': [entry_text]
             }
         )
 
@@ -37,13 +48,13 @@ def create_entry(event, context):
         table.put_item(
             Item={
                 'date': entry_key,
-                'entries': [json_body['text']]
+                'entries': [entry_text]
             }
         )
 
         print("Writing new dynamodb item entry")
 
-    return helper.return_success_json({'success': True})
+    return algolia_helper.return_success_json({'success': True})
 
 
 def get_entry(event, context):
@@ -51,7 +62,7 @@ def get_entry(event, context):
 
     print("getting entry for: " + str(entry_date))
 
-    algolia_index = helper.get_algolia_client()
+    algolia_index = algolia_helper.get_algolia_client()
 
     try:
         entry = algolia_index.get_object(
@@ -66,9 +77,9 @@ def get_entry(event, context):
             }
         )
 
-        return helper.return_success_json(entry)
+        return algolia_helper.return_success_json(entry)
     except:
-        return helper.return_404_json({})
+        return algolia_helper.return_404_json({})
 
 
 def search_entries(event, context):
@@ -76,7 +87,7 @@ def search_entries(event, context):
     Function to search through the search index for a query
     """
 
-    algolia_index = helper.get_algolia_client()
+    algolia_index = algolia_helper.get_algolia_client()
 
     query = event['queryStringParameters']['query']
 
@@ -95,7 +106,7 @@ def search_entries(event, context):
         }
     )
 
-    return helper.return_success_json(results)
+    return algolia_helper.return_success_json(results)
 
 
 def sync_entries_to_search_index(event, context):
@@ -104,7 +115,7 @@ def sync_entries_to_search_index(event, context):
     Triggered by a DynamoDb trigger on create/update/delete
     """
 
-    algolia_index = helper.get_algolia_client()
+    algolia_index = algolia_helper.get_algolia_client()
 
     date_key = str(event['Records'][0]['dynamodb']['Keys']['date']['N'])
 
@@ -130,9 +141,18 @@ def sync_entries_to_search_index(event, context):
 
         return True
 
+    kms = boto3.client("kms")
+
     entries = []
     for entry in event['Records'][0]['dynamodb']['NewImage']['entries']['L']:
-        entries.append(entry['S'])
+        if "S" in entry:
+            entries.append(entry["S"])
+        elif "B" in entry:
+            kms_response = kms.decrypt(
+                KeyId=os.environ["KMS_KEY_ARN"],
+                CiphertextBlob=base64.b64decode(entry['B'])
+            )
+            entries.append(kms_response["Plaintext"].decode('utf8'))
 
     date = datetime.datetime(int(date_key[0:4]), int(date_key[4:6]), int(date_key[6:8]))
 
@@ -154,3 +174,60 @@ def sync_entries_to_search_index(event, context):
         algolia_index.save_objects([body])
 
     return True
+
+
+def encrypt_unencrypted_entries(event, context):
+    dynamodb = boto3.resource('dynamodb')
+    table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
+
+    kms = boto3.client("kms")
+
+    scan_kwargs = {
+        # small limit just in case some entries are very large and we
+        # try to return too much from Dynamodb
+        "Limit": 5
+    }
+
+    done = False
+    start_key = None
+
+    while not done:
+        if start_key:
+            scan_kwargs['ExclusiveStartKey'] = start_key
+
+        response = table.scan(**scan_kwargs)
+
+        encryptedSomeEntries = False
+
+        for item in response["Items"]:
+            print(item)
+
+            for key, value in enumerate(item["entries"]):
+                if isinstance(value, str):
+                    encryption_response = kms.encrypt(
+                        KeyId=os.environ["KMS_KEY_ARN"],
+                        Plaintext=value
+                    )
+                    item["entries"][key] = encryption_response["CiphertextBlob"]
+                    encryptedSomeEntries = True
+
+            if encryptedSomeEntries:
+                print(item)
+
+                # update the item
+                response = table.update_item(
+                    Key={
+                        'date': int(item["date"])
+                    },
+                    UpdateExpression="set entries=:a",
+                    ExpressionAttributeValues={
+                        ':a': item["entries"]
+                    },
+                    ReturnValues="UPDATED_NEW"
+                )
+
+                if response["ResponseMetadata"]["HTTPStatusCode"] != 200:
+                    print(response)
+
+        start_key = response.get('LastEvaluatedKey', None)
+        done = start_key is None

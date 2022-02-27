@@ -3,7 +3,7 @@ import time
 import datetime
 import dateutil.tz
 import os
-import helper
+import algolia_helper
 
 
 def rebuild_search_index(event, context):
