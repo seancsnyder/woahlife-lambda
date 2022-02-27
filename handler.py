@@ -189,8 +189,6 @@ def encrypt_unencrypted_entries(event, context):
         encryptedSomeEntries = False
 
         for item in response["Items"]:
-            print(item)
-
             for key, value in enumerate(item["entries"]):
                 if isinstance(value, str):
                     encryption_response = kms.encrypt(
@@ -201,8 +199,6 @@ def encrypt_unencrypted_entries(event, context):
                     encryptedSomeEntries = True
 
             if encryptedSomeEntries:
-                print(item)
-
                 # update the item
                 response = table.update_item(
                     Key={
