@@ -10,8 +10,6 @@ plugins:
   - serverless-domain-manager
 
 custom:
-  pythonRequirements:
-    dockerizePip: true
   alerts:
     topics:
       alarm:
@@ -35,7 +33,7 @@ custom:
 
 provider:
   name: aws
-  runtime: python3.7
+  runtime: python3.8
   stage: ${opt:stage, 'dev'}
   region: us-west-2
   versionFunctions: true
