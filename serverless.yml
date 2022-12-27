@@ -54,6 +54,7 @@ provider:
             - !Sub arn:aws:logs:${aws:region}:${aws:accountId}:log-group:API-Gateway-Execution-Logs*
         - Effect: Allow
           Action:
+            - dynamodb:BatchGetItem
             - dynamodb:PutItem
             - dynamodb:GetItem
             - dynamodb:UpdateItem

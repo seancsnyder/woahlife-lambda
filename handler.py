@@ -1,7 +1,7 @@
 import base64
+import datetime
 import json
 import os
-import datetime
 import time
 
 import boto3.dynamodb
@@ -67,25 +67,28 @@ def find_missing_month_entries(event, context):
 
     date_obj = datetime.date(int(date_in_month[0:4]), int(date_in_month[4:6]), int(date_in_month[6:8]))
 
-    # always have a first of the month
+    # we always have a first of the month as our starting point
     start_of_month = datetime.date(date_obj.year, date_obj.month, 1)
 
     # find some date next month
     sometime_next_month = start_of_month + datetime.timedelta(days=40)
-    # figure out when it starts and then subtract one day to get the end of the current month
+
+    # figure out when next month starts and then subtract one day to get the end of the current month
     start_of_next_month = datetime.date(sometime_next_month.year, sometime_next_month.month, 1)
     end_of_month = start_of_next_month - datetime.timedelta(days=1)
 
     current_date = start_of_month
-
     date_keys_missing = {}
 
-    while current_date <= end_of_month and current_date <= today:
+    # don't include today or any dates in the future.
+    # give me a chance to fill out today's entry before complaining that i missed a day
+    while current_date <= end_of_month and current_date < today:
         date_key = str(current_date).replace("-", "")
         date_keys_missing[date_key] = True
 
         current_date = current_date + datetime.timedelta(days=1)
 
+    # Check dynamodb to see what dates we've already recorded
     response = dynamodb.batch_get_item(RequestItems={
         table.name: {
             'Keys': [{'date': int(str(day).replace("-", ""))} for day in date_keys_missing],
@@ -110,7 +113,7 @@ def find_missing_month_entries(event, context):
 
     return {
         'statusCode': 200,
-        'body': json.dumps({'success': True, 'missing_dates': date_keys_missing.keys()})
+        'body': json.dumps({'success': True, 'missing_dates': list(date_keys_missing.keys())})
     }
 
 

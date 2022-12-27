@@ -1,8 +1,10 @@
-import boto3
-import time
 import datetime
-import dateutil.tz
 import os
+import time
+
+import boto3
+import dateutil.tz
+
 import algolia_helper
 
 
