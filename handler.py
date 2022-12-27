@@ -57,6 +57,63 @@ def create_entry(event, context):
     return algolia_helper.return_success_json({'success': True})
 
 
+def find_missing_month_entries(event, context):
+    dynamodb = boto3.resource('dynamodb')
+    table = dynamodb.Table(os.environ['DYNAMODB_TABLE'])
+
+    date_in_month = event['pathParameters']['date']
+
+    today = datetime.date.today()
+
+    date_obj = datetime.date(int(date_in_month[0:4]), int(date_in_month[4:6]), int(date_in_month[6:8]))
+
+    # always have a first of the month
+    start_of_month = datetime.date(date_obj.year, date_obj.month, 1)
+
+    # find some date next month
+    sometime_next_month = start_of_month + datetime.timedelta(days=40)
+    # figure out when it starts and then subtract one day to get the end of the current month
+    start_of_next_month = datetime.date(sometime_next_month.year, sometime_next_month.month, 1)
+    end_of_month = start_of_next_month - datetime.timedelta(days=1)
+
+    current_date = start_of_month
+
+    date_keys_missing = {}
+
+    while current_date <= end_of_month and current_date <= today:
+        date_key = str(current_date).replace("-", "")
+        date_keys_missing[date_key] = True
+
+        current_date = current_date + datetime.timedelta(days=1)
+
+    response = dynamodb.batch_get_item(RequestItems={
+        table.name: {
+            'Keys': [{'date': int(str(day).replace("-", ""))} for day in date_keys_missing],
+            'AttributesToGet': [
+                'date',
+            ]
+        }
+    })
+
+    if response["ResponseMetadata"]['HTTPStatusCode'] != 200:
+        print("non 200 response:" + str(response["ResponseMetadata"]))
+        return {
+            'statusCode': 500,
+            'body': json.dumps({'success': False})
+        }
+
+    for item in response["Responses"][table.name]:
+        date_key = str(int(item["date"]))
+
+        if date_key in date_keys_missing:
+            del date_keys_missing[date_key]
+
+    return {
+        'statusCode': 200,
+        'body': json.dumps({'success': True, 'missing_dates': date_keys_missing.keys()})
+    }
+
+
 def get_entry(event, context):
     entry_date = int(event['pathParameters']['date'])
 

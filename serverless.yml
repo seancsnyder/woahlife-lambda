@@ -193,7 +193,7 @@ functions:
     name: ${self:service}-${self:provider.stage}-encrypt-unencrypted-entries
     description: Search through journal entries and encrypt anything that wasn't already encrypted
     memorySize: 128
-    timeout: 600
+    timeout: 10
     layers:
       - arn:aws:lambda:us-west-2:580247275435:layer:LambdaInsightsExtension:14
     alarms:
@@ -201,6 +201,29 @@ functions:
       - functionInvocations
     environment:
       KMS_KEY_ARN: !GetAtt EncryptionKey.Arn
+      DYNAMODB_TABLE: !Ref DynamoTable
+
+  FindMissingMonthEntries:
+    handler: handler.find_missing_month_entries
+    name: ${self:service}-${self:provider.stage}-find-missing-month-entries
+    description: Find dates in a month that are missing journal entries
+    memorySize: 128
+    timeout: 10
+    layers:
+      - arn:aws:lambda:us-west-2:580247275435:layer:LambdaInsightsExtension:14
+    alarms:
+      - functionErrors
+      - functionInvocations
+    events:
+      - http:
+          path: missing/{date}
+          method: get
+          private: true
+          request:
+            parameters:
+              paths:
+                date: true
+    environment:
       DYNAMODB_TABLE: !Ref DynamoTable
 
 resources:
