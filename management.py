@@ -10,7 +10,7 @@ def rebuild_search_index(event, context):
     dynamodb = boto3.resource('dynamodb')
     table = dynamodb.Table(os.environ['DYANMODB_TABLE'])
 
-    algolia_index = helper.get_algolia_client()
+    algolia_index = algolia_helper.get_algolia_client()
 
     pacific = dateutil.tz.gettz('US/Pacific')
     pacific_date = datetime.datetime.now(tz=pacific)

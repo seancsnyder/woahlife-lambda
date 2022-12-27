@@ -186,7 +186,7 @@ def encrypt_unencrypted_entries(event, context):
 
         response = table.scan(**scan_kwargs)
 
-        encryptedSomeEntries = False
+        encrypted_some_entries = False
 
         for item in response["Items"]:
             for key, value in enumerate(item["entries"]):
@@ -196,9 +196,9 @@ def encrypt_unencrypted_entries(event, context):
                         Plaintext=value
                     )
                     item["entries"][key] = encryption_response["CiphertextBlob"]
-                    encryptedSomeEntries = True
+                    encrypted_some_entries = True
 
-            if encryptedSomeEntries:
+            if encrypted_some_entries:
                 # update the item
                 response = table.update_item(
                     Key={
