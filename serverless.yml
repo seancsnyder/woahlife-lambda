@@ -5,25 +5,9 @@ frameworkVersion: '3'
 configValidationMode: warn
 
 plugins:
-  - serverless-plugin-aws-alerts
   - serverless-python-requirements
   - serverless-domain-manager
-
 custom:
-  alerts:
-    topics:
-      alarm:
-        topic: ${self:service}-${self:provider.stage}-alarm
-        notifications:
-          - protocol: email
-            endpoint: noreply@snyderitis.com
-    dashboards: true
-    definitions:
-      functionErrors:
-        period: 3600
-    alarms:
-      - functionErrors
-      - functionInvocations
   rootDomain: woahlife.com
   customDomain:
     domainName: api-${self:provider.stage}.${self:custom.rootDomain}
@@ -33,6 +17,7 @@ custom:
 
 provider:
   name: aws
+  endpointType: REGIONAL
   runtime: python3.8
   stage: ${opt:stage, 'dev'}
   region: us-west-2
@@ -103,9 +88,6 @@ functions:
     timeout: 30
     layers:
       - arn:aws:lambda:us-west-2:580247275435:layer:LambdaInsightsExtension:14
-    alarms:
-      - functionErrors
-      - functionInvocations
     events:
       - http:
           path: create
@@ -123,9 +105,6 @@ functions:
     timeout: 30
     layers:
       - arn:aws:lambda:us-west-2:580247275435:layer:LambdaInsightsExtension:14
-    alarms:
-      - functionErrors
-      - functionInvocations
     events:
       - http:
           path: entry/{date}
@@ -148,9 +127,6 @@ functions:
     timeout: 60
     layers:
       - arn:aws:lambda:us-west-2:580247275435:layer:LambdaInsightsExtension:14
-    alarms:
-      - functionErrors
-      - functionInvocations
     events:
       - stream:
           type: dynamodb
@@ -172,9 +148,6 @@ functions:
     timeout: 30
     layers:
       - arn:aws:lambda:us-west-2:580247275435:layer:LambdaInsightsExtension:14
-    alarms:
-      - functionErrors
-      - functionInvocations
     events:
       - http:
           path: search
@@ -197,9 +170,6 @@ functions:
     timeout: 10
     layers:
       - arn:aws:lambda:us-west-2:580247275435:layer:LambdaInsightsExtension:14
-    alarms:
-      - functionErrors
-      - functionInvocations
     environment:
       KMS_KEY_ARN: !GetAtt EncryptionKey.Arn
       DYNAMODB_TABLE: !Ref DynamoTable
@@ -212,9 +182,6 @@ functions:
     timeout: 10
     layers:
       - arn:aws:lambda:us-west-2:580247275435:layer:LambdaInsightsExtension:14
-    alarms:
-      - functionErrors
-      - functionInvocations
     events:
       - http:
           path: missing/{date}
